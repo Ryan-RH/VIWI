@@ -1,13 +1,15 @@
 using Dalamud.Bindings.ImGui;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
+using ECommons.ImGuiMethods;
 using System.Numerics;
 using VIWI.Core;
+using VIWI.Helpers;
 using VIWI.Modules.AutoLogin;
 
 namespace VIWI.UI.Pages
 {
-    public sealed class AutoLoginDashboardPage : IDashboardPage
+    public sealed class AutoLoginPage : IDashboardPage
     {
         public string DisplayName => "AutoLogin";
         public string Category => "Modules";
@@ -30,7 +32,8 @@ namespace VIWI.UI.Pages
         {
             var config = AutoLoginModule.Config;
             ImGuiHelpers.ScaledDummy(4f);
-            ImGui.TextUnformatted($"AutoLogin – DDoS Begone! - V{Version}");
+            ImGui.TextUnformatted($"AutoLogin - V{Version}");
+            ImGui.TextColored(GradientColor.Get(ImGuiHelper.RainbowColorStart, ImGuiHelper.RainbowColorEnd, 500), "DDoS Begone!");
             ImGui.TextUnformatted($"Enabled: {config.Enabled}");
             ImGuiHelpers.ScaledDummy(4f);
             ImGui.Separator();
@@ -83,7 +86,7 @@ namespace VIWI.UI.Pages
                 config.HCvDataCenterName = config.vDataCenterName;
                 AutoLoginModule.SaveConfig();
             }
-            ImGuiComponents.HelpMarker("- Hardcore Mode will save your preferred character -\nopting to prioritize logging back into this character \nin the event of a disconnect rather than the one \nyou were currently on (unless its the same one, duh!).");
+            ImGuiComponents.HelpMarker("--- Hardcore Mode will save your preferred character ---\nThis prioritizes logging back into the stored character \nin the event of a disconnect rather than the one \nyou were currently on (unless its the same one, duh!).");
             if (HCMode)
             {
                 if (!string.IsNullOrEmpty(config.HCCharacterName))

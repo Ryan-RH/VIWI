@@ -1,4 +1,4 @@
-<Project Sdk="Dalamud.NET.Sdk/13.1.0">
+﻿<Project Sdk="Dalamud.NET.Sdk/13.1.0">
 
 	<PropertyGroup>
 		<Authors>VeraNala</Authors>
@@ -20,6 +20,11 @@
 	<PropertyGroup>
 		<DalamudLibPath>$(AppData)\XIVLauncher\addon\Hooks\dev\</DalamudLibPath>
 	</PropertyGroup>
+
+	<ItemGroup>
+	  <Content Include="VIWI.json" />
+	  <Content Include="VIWI.png" />
+	</ItemGroup>
 	
 	<ItemGroup>
 		<ProjectReference Include="..\ECommons\ECommons\ECommons.csproj" />
@@ -90,7 +95,8 @@
 		</Reference>
 	</ItemGroup>
 	<ItemGroup>
-	  <Folder Include="Helpers\" />
+	  <Folder Include="Modules\Workshoppa\External\" />
+	  <Folder Include="Modules\Workshoppa\GameData\" />
 	</ItemGroup>
 
 </Project>

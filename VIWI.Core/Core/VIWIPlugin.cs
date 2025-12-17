@@ -26,6 +26,9 @@ public sealed class VIWIPlugin : IDalamudPlugin
     [PluginService] internal static ICommandManager CommandManager { get; private set; } = null!;
     [PluginService] internal static ISigScanner SigScanner { get; private set; } = null!;
     [PluginService] internal static IGameInteropProvider HookProvider { get; private set; } = null!;
+    [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
+    [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
+    [PluginService] internal static ICondition Condition { get; private set; } = null!;
 
     internal readonly WindowSystem WindowSystem = new("VIWI");
     internal MainDashboardWindow? MainWindow;
@@ -41,7 +44,10 @@ public sealed class VIWIPlugin : IDalamudPlugin
             IFramework framework,
             ICommandManager commandManager,
             ISigScanner sigScanner,
-            IGameInteropProvider hookProvider)
+            IGameInteropProvider hookProvider,
+            IAddonLifecycle addonLifecycle,
+            IChatGui chatGui,
+            ICondition condition)
     {
         Instance = this;
         PluginInterface = pluginInterface;
@@ -58,6 +64,9 @@ public sealed class VIWIPlugin : IDalamudPlugin
         VIWIContext.CommandManager = commandManager;
         VIWIContext.SigScanner = sigScanner;
         VIWIContext.HookProvider = hookProvider;
+        VIWIContext.AddonLifecycle = addonLifecycle;
+        VIWIContext.ChatGui = chatGui;
+        VIWIContext.Condition = condition;
 
         ECommonsMain.Init(pluginInterface, this);
         PluginLog.Information("[VIWI] Core + ECommons initialized.");
@@ -66,6 +75,7 @@ public sealed class VIWIPlugin : IDalamudPlugin
         WindowSystem.AddWindow(MainWindow);
         PluginInterface.UiBuilder.Draw += WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenMainUi += ToggleMainUI;
+        PluginInterface.UiBuilder.OpenConfigUi += ToggleMainUI;
         commandManager.AddHandler("/viwi", new Dalamud.Game.Command.CommandInfo(OnCommand)
         {
             HelpMessage = "Opens the VIWI dashboard."
@@ -78,6 +88,7 @@ public sealed class VIWIPlugin : IDalamudPlugin
         CommandManager.RemoveHandler("/viwi");
         PluginInterface.UiBuilder.Draw -= WindowSystem.Draw;
         PluginInterface.UiBuilder.OpenMainUi -= ToggleMainUI;
+        PluginInterface.UiBuilder.OpenConfigUi -= ToggleMainUI;
 
         if (MainWindow is not null)
         {

@@ -4,7 +4,7 @@ using VIWI.Modules.AoEasy;
 
 namespace VIWI.UI.Pages
 {
-    public sealed class AoEasyDashboardPage : IDashboardPage
+    public sealed class AoEasyPage : IDashboardPage
     {
         public string DisplayName => "AoEasy";
         public string Category => "Modules";
@@ -26,7 +26,7 @@ namespace VIWI.UI.Pages
         {
             var config = AoEasyModule.Config;
             ImGuiHelpers.ScaledDummy(4f);
-            ImGui.TextUnformatted($"AoEasy – Stop Running Away From Me! - V{Version}");
+            ImGui.TextUnformatted($"AoEasy â€“ Stop Running Away From Me! - V{Version}");
             ImGui.TextUnformatted($"Enabled: {config.Enabled}");
             ImGuiHelpers.ScaledDummy(4f);
             ImGui.Separator();

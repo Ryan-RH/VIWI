@@ -1,10 +1,12 @@
 {
-  "Author": "Vera Nala",
-  "Name": "VIWI",
-  "Punchline": "Vera's Integrated World Improvements",
-  "Description": "Vera's Integrated World Improvements",
-  "Version": "0.0.1",
-  "DalamudApiLevel": 13,
-  "LoadPriority": 0,
-  "Tag": "General"
+  "Name": "Vera's Integrated World Improvements",
+  "Author": "VeraNala",
+  "Punchline": "VIWI",
+  "InternalName": "VIWI",
+  "DalamudApiLevel": "13"
+  "MinimumDalamudVersion": "13.0.0.0",
+  "Description": "A collection of plugins-turned-modules and various QoL improvements and Automation features.",
+  "Tags":  "VIWI, Vera, Workshoppa, Deliveroo, AutoLogin, Login, AoE, AoEasy, Squadronista",
+  "RepoUrl": "https://github.com/VeraNala/VIWI",
+  "IconUrl": "https://github.com/VeraNala/VIWI/VIWI.png"
 }

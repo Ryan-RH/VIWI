@@ -22,4 +22,8 @@ public static class VIWIContext
     public static ISigScanner SigScanner { get; internal set; } = null!;
     public static IFramework Framework { get; internal set; } = null!;
     public static ICommandManager CommandManager { get; internal set; } = null!;
+    public static IChatGui ChatGui { get; internal set; } = null!;
+    public static IAddonLifecycle AddonLifecycle { get; internal set; } = null!;
+    public static ICondition Condition { get; internal set; } = null!;
+    public static IPluginLog PluginLog { get; internal set; } = null!;
 }

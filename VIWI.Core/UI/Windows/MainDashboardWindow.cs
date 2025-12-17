@@ -23,8 +23,9 @@ namespace VIWI.UI.Windows
             };
 
             DashboardRegistry.Register(new OverviewDashboardPage());
-            DashboardRegistry.Register(new AoEasyDashboardPage());
-            DashboardRegistry.Register(new AutoLoginDashboardPage());
+            DashboardRegistry.Register(new AoEasyPage());
+            DashboardRegistry.Register(new AutoLoginPage());
+            DashboardRegistry.Register(new WorkshoppaPage());
 
             activePage = DashboardRegistry.Pages.FirstOrDefault();
         }

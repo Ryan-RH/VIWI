@@ -87,7 +87,6 @@ namespace VIWI.Core
                 {
                     if (Activator.CreateInstance(type) is not IVIWIModule module)
                         continue;
-
                     modules.Add(module);
                     module.Initialize();
                     PluginLog.Information($"[VIWI] Loaded module: {module.Name} v{module.Version}");
