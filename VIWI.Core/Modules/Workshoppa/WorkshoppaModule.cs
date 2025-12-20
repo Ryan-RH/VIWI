@@ -112,8 +112,8 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
         _ceruleumTankWindow = new(_pluginLog, _gameGui, addonLifecycle, _configuration, _externalPluginHandler, _chatGui);
         VIWIContext.CorePlugin.WindowSystem.AddWindow(_ceruleumTankWindow);
 
-        if (_configuration.Enabled)
-            Enable();
+        /*if (_configuration.Enabled)
+            Enable();*/
         PluginLog.Information("[Workshoppa] Module initialized.");
     }
 
