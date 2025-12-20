@@ -11,104 +11,72 @@ internal sealed partial class WorkshoppaModule
 {
     private unsafe void SelectYesNoPostSetup(AddonEvent type, AddonArgs args)
     {
-        if (!initialized || !isEnabled) return;
-        if (pluginLog == null) return;
-        if (args.Addon.Address == nint.Zero) return;
+        _pluginLog.Verbose("SelectYesNo post-setup");
 
-        var addonSelectYesNo = (AddonSelectYesno*)args.Addon.Address;
-        if (addonSelectYesNo == null) return;
-        if (addonSelectYesNo->PromptText == null) return;
+        AddonSelectYesno* addonSelectYesNo = (AddonSelectYesno*)args.Addon.Address;
+        string text = MemoryHelper.ReadSeString(&addonSelectYesNo->PromptText->NodeText).ToString()
+            .Replace("\n", "", StringComparison.Ordinal)
+            .Replace("\r", "", StringComparison.Ordinal);
+        _pluginLog.Verbose($"YesNo prompt: '{text}'");
 
-        var gs = gameStrings;
-        if (gs == null) return;
-
-        string text;
-        try
+        if (_repairKitWindow.IsOpen)
         {
-            text = MemoryHelper.ReadSeString(&addonSelectYesNo->PromptText->NodeText).ToString()
-                .Replace("\n", "", StringComparison.Ordinal)
-                .Replace("\r", "", StringComparison.Ordinal);
-        }
-        catch (Exception ex)
-        {
-            pluginLog.Verbose(ex, "[Workshoppa] SelectYesNo: failed to read prompt text");
-            return;
-        }
-
-        pluginLog.Verbose($"[Workshoppa] YesNo prompt: '{text}'");
-
-        var rk = workshoppaRepairKitWindow;
-        if (rk != null && rk.IsOpen)
-        {
-            pluginLog.Verbose($"[Workshoppa] RepairKit YesNo? (AutoBuy={rk.AutoBuyEnabled}, Await={rk.IsAwaitingYesNo})");
-
-            if (rk.AutoBuyEnabled && rk.IsAwaitingYesNo && gs.PurchaseItemForGil.IsMatch(text))
+            _pluginLog.Verbose($"Checking for Repair Kit YesNo ({_repairKitWindow.AutoBuyEnabled}, {_repairKitWindow.IsAwaitingYesNo})");
+            if (_repairKitWindow.AutoBuyEnabled && _repairKitWindow.IsAwaitingYesNo && _gameStrings.PurchaseItemForGil.IsMatch(text))
             {
-                pluginLog.Information($"[Workshoppa] Confirming gil purchase: {text}");
-                rk.IsAwaitingYesNo = false;
+                _pluginLog.Information($"Selecting 'yes' ({text})");
+                _repairKitWindow.IsAwaitingYesNo = false;
                 addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
             }
-
-            return;
-        }
-
-        var ct = workshoppaCeruleumTankWindow;
-        if (ct != null && ct.IsOpen)
-        {
-            pluginLog.Verbose($"[Workshoppa] Ceruleum YesNo? (AutoBuy={ct.AutoBuyEnabled}, Await={ct.IsAwaitingYesNo})");
-
-            if (ct.AutoBuyEnabled && ct.IsAwaitingYesNo && gs.PurchaseItemForCompanyCredits.IsMatch(text))
+            else
             {
-                pluginLog.Information($"[Workshoppa] Confirming CC purchase: {text}");
-                ct.IsAwaitingYesNo = false;
+                _pluginLog.Verbose("Not a purchase confirmation match");
+            }
+        }
+        else if (_ceruleumTankWindow.IsOpen)
+        {
+            _pluginLog.Verbose($"Checking for Ceruleum Tank YesNo ({_ceruleumTankWindow.AutoBuyEnabled}, {_ceruleumTankWindow.IsAwaitingYesNo})");
+            if (_ceruleumTankWindow.AutoBuyEnabled && _ceruleumTankWindow.IsAwaitingYesNo && _gameStrings.PurchaseItemForCompanyCredits.IsMatch(text))
+            {
+                _pluginLog.Information($"Selecting 'yes' ({text})");
+                _ceruleumTankWindow.IsAwaitingYesNo = false;
                 addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
             }
-
-            return;
-        }
-
-        if (CurrentStage == Stage.Stopped)
-            return;
-
-        if (CurrentStage == Stage.ConfirmMaterialDelivery)
-        {
-            if (gs.TurnInHighQualityItem == text)
+            else
             {
-                pluginLog.Information($"[Workshoppa] Confirming HQ turn-in: {text}");
-                addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
-                return;
+                _pluginLog.Verbose("Not a purchase confirmation match");
             }
-
-            if (gs.ContributeItems.IsMatch(text))
+        }
+        else if (CurrentStage != Stage.Stopped)
+        {
+            if (CurrentStage == Stage.ConfirmMaterialDelivery && _gameStrings.TurnInHighQualityItem == text)
             {
-                pluginLog.Information($"[Workshoppa] Confirming contribute: {text}");
+                _pluginLog.Information($"Selecting 'yes' ({text})");
+                addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
+            }
+            else if (CurrentStage == Stage.ConfirmMaterialDelivery && _gameStrings.ContributeItems.IsMatch(text))
+            {
+                _pluginLog.Information($"Selecting 'yes' ({text})");
                 addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
 
-                try { ConfirmMaterialDeliveryFollowUp(); }
-                catch (Exception ex) { pluginLog.Error(ex, "[Workshoppa] ConfirmMaterialDeliveryFollowUp failed"); }
-
-                return;
+                ConfirmMaterialDeliveryFollowUp();
             }
+            else if (CurrentStage == Stage.ConfirmCollectProduct && _gameStrings.RetrieveFinishedItem.IsMatch(text))
+            {
+                _pluginLog.Information($"Selecting 'yes' ({text})");
+                addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
 
-            return;
-        }
-
-        if (CurrentStage == Stage.ConfirmCollectProduct && gs.RetrieveFinishedItem.IsMatch(text))
-        {
-            pluginLog.Information($"[Workshoppa] Confirming collect: {text}");
-            addonSelectYesNo->AtkUnitBase.FireCallbackInt(0);
-
-            try { ConfirmCollectProductFollowUp(); }
-            catch (Exception ex) { pluginLog.Error(ex, "[Workshoppa] ConfirmCollectProductFollowUp failed"); }
+                ConfirmCollectProductFollowUp();
+            }
         }
     }
 
     private void ConfirmCollectProductFollowUp()
     {
-        Config.CurrentlyCraftedItem = null;
-        VIWIContext.PluginInterface.SavePluginConfig(Config);
+        _configuration.CurrentlyCraftedItem = null;
+        _pluginInterface.SavePluginConfig(_configuration);
 
         CurrentStage = Stage.TakeItemFromQueue;
-        continueAt = DateTime.Now.AddSeconds(0.5);
+        _continueAt = DateTime.Now.AddSeconds(0.5);
     }
 }

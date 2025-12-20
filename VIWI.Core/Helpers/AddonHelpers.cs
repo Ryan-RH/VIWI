@@ -28,6 +28,8 @@ internal static unsafe class AddonState
 
         if (addon->UldManager.NodeList == null) return false;
         if (addon->UldManager.NodeListCount == 0) return false;
+        //if (addon->AtkValues != null) return false;
+        //if (addon->AtkValuesCount == 0) return false;
 
         return true;
     }

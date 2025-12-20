@@ -7,6 +7,7 @@ public enum Stage
 
     OpenCraftingLog,
     SelectCraftCategory,
+    WaitCraftLogRefresh,
     SelectCraft,
     ConfirmCraft,
 

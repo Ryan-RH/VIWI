@@ -21,23 +21,23 @@ internal sealed partial class WorkshoppaModule
 {
     private unsafe void InteractWithTarget(IGameObject obj)
     {
-        pluginLog.Information($"Setting target to {obj}");
+        _pluginLog.Information($"Setting target to {obj}");
         /*
         if (_targetManager.Target == null || _targetManager.Target != obj)
         {
             _targetManager.Target = obj;
         }
-        */
+*/
         TargetSystem.Instance()->InteractWithObject(
             (FFXIVClientStructs.FFXIV.Client.Game.Object.GameObject*)obj.Address, false);
     }
 
     private float GetDistanceToEventObject(IReadOnlyList<uint> npcIds, out IGameObject? o)
     {
-        Vector3? localPlayerPosition = objectTable.LocalPlayer?.Position;
+        Vector3? localPlayerPosition = _clientState.LocalPlayer?.Position;
         if (localPlayerPosition != null)
         {
-            foreach (var obj in objectTable)
+            foreach (var obj in _objectTable)
             {
                 if (obj.ObjectKind == ObjectKind.EventObj)
                 {
@@ -59,7 +59,7 @@ internal sealed partial class WorkshoppaModule
 
     private unsafe AtkUnitBase* GetCompanyCraftingLogAddon()
     {
-        if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(gameGui,"CompanyCraftRecipeNoteBook", out var addon) &&
+        if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(_gameGui, "CompanyCraftRecipeNoteBook", out var addon) &&
             AddonState.IsAddonReady(addon))
             return addon;
 
@@ -89,32 +89,53 @@ internal sealed partial class WorkshoppaModule
 
     private unsafe bool SelectSelectString(string marker, int choice, Predicate<string> predicate)
     {
-        if (AddonHelpers.TryGetAddonByName<AddonSelectString>(gameGui, "SelectString", out var addonSelectString) &&
-            AddonState.IsAddonReady(&addonSelectString->AtkUnitBase))
+        try
         {
-            int entries = addonSelectString->PopupMenu.PopupMenu.EntryCount;
-            if (entries < choice)
+            if (!AddonHelpers.TryGetAddonByName<AddonSelectString>(_gameGui, "SelectString", out var addonSelectString))
+                return false;
+            if (!AddonState.IsAddonReady(&addonSelectString->AtkUnitBase))
                 return false;
 
-            CStringPointer textPointer = addonSelectString->PopupMenu.PopupMenu.EntryNames[choice];
+            var popup = addonSelectString->PopupMenu;
+            var menu = popup.PopupMenu;
+
+            int entries = menu.EntryCount;
+            if (entries <= 0)
+                return false;
+
+            if (choice < 0 || choice >= entries)
+                return false;
+
+            var entryNames = menu.EntryNames;
+            if (entryNames == null)
+                return false;
+
+            CStringPointer textPointer = entryNames[choice];
             if (!textPointer.HasValue)
                 return false;
 
             var text = MemoryHelper.ReadSeStringNullTerminated(new nint(textPointer)).ToString();
-            pluginLog.Verbose($"SelectSelectString for {marker}, Choice would be '{text}'");
-            if (predicate(text))
-            {
-                addonSelectString->AtkUnitBase.FireCallbackInt(choice);
-                return true;
-            }
-        }
+            if (string.IsNullOrEmpty(text))
+                return false;
 
-        return false;
+            _pluginLog.Verbose($"SelectSelectString({marker}): choice {choice}/{entries} '{text}'");
+
+            if (!predicate(text))
+                return false;
+
+            addonSelectString->AtkUnitBase.FireCallbackInt(choice);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _pluginLog.Warning(ex, $"SelectSelectString({marker}) failed safely");
+            return false;
+        }
     }
 
     private unsafe bool SelectSelectYesno(int choice, Predicate<string> predicate)
     {
-        if (AddonHelpers.TryGetAddonByName<AddonSelectYesno>(gameGui, "SelectYesno", out var addonSelectYesno) &&
+        if (AddonHelpers.TryGetAddonByName<AddonSelectYesno>(_gameGui, "SelectYesno", out var addonSelectYesno) &&
             AddonState.IsAddonReady(&addonSelectYesno->AtkUnitBase))
         {
             var text = MemoryHelper.ReadSeString(&addonSelectYesno->PromptText->NodeText).ToString();
@@ -123,13 +144,13 @@ internal sealed partial class WorkshoppaModule
                 .Replace("\r", "", StringComparison.Ordinal);
             if (predicate(text))
             {
-                pluginLog.Information($"Selecting choice {choice} for '{text}'");
+                _pluginLog.Information($"Selecting choice {choice} for '{text}'");
                 addonSelectYesno->AtkUnitBase.FireCallbackInt(choice);
                 return true;
             }
             else
             {
-                pluginLog.Verbose($"Text {text} does not match");
+                _pluginLog.Verbose($"Text {text} does not match");
             }
         }
 
@@ -176,7 +197,7 @@ internal sealed partial class WorkshoppaModule
         }
         catch (Exception e)
         {
-            pluginLog.Warning(e, "Could not parse CompanyCraftMaterial info");
+            _pluginLog.Warning(e, "Could not parse CompanyCraftMaterial info");
         }
 
         return null;

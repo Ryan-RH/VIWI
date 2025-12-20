@@ -2,12 +2,14 @@ using Dalamud.Bindings.ImGui;
 using Dalamud.Interface;
 using Dalamud.Interface.Colors;
 using Dalamud.Interface.Components;
+using Dalamud.Interface.Textures.TextureWraps;
 using Dalamud.Interface.Utility.Raii;
 using Dalamud.Interface.Windowing;
 using Dalamud.Plugin.Services;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using System;
 using System.Collections.Generic;
+using System.Configuration;
 using System.Linq;
 using System.Numerics;
 using System.Text;
@@ -22,7 +24,7 @@ internal sealed class WorkshoppaWindow : Window
     private static readonly Regex CountAndName = new(@"^(\d{1,5})x?\s+(.*)$", RegexOptions.Compiled);
 
     private readonly WorkshoppaModule _module;
-    private readonly IObjectTable _objectTable;
+    private readonly IClientState _clientState;
     private readonly WorkshoppaConfig _config;
     private readonly WorkshopCache _workshopCache;
     private readonly IconCache _iconCache;
@@ -36,7 +38,7 @@ internal sealed class WorkshoppaWindow : Window
 
     public WorkshoppaWindow(
         WorkshoppaModule module,
-        IObjectTable objectTable,
+        IClientState clientState,
         WorkshoppaConfig config,
         WorkshopCache workshopCache,
         IconCache iconCache,
@@ -46,7 +48,7 @@ internal sealed class WorkshoppaWindow : Window
         : base("Workshoppa###VIWI_WorkshoppaWindow")
     {
         _module = module;
-        _objectTable = objectTable;
+        _clientState = clientState;
         _config = config;
         _workshopCache = workshopCache;
         _iconCache = iconCache;
@@ -66,7 +68,7 @@ internal sealed class WorkshoppaWindow : Window
         Flags = ImGuiWindowFlags.AlwaysAutoResize | ImGuiWindowFlags.MenuBar;
 
         RespectCloseHotkey = true;
-        DisableWindowSounds = false;
+        AllowClickthrough = false;
     }
 
     public EOpenReason OpenReason { get; set; } = EOpenReason.None;
@@ -74,7 +76,7 @@ internal sealed class WorkshoppaWindow : Window
     public ButtonState State { get; set; } = ButtonState.None;
 
     private bool IsDiscipleOfHand =>
-        _objectTable.LocalPlayer != null && _objectTable.LocalPlayer.ClassJob.RowId is >= 8 and <= 15;
+        _clientState.LocalPlayer != null && _clientState.LocalPlayer.ClassJob.RowId is >= 8 and <= 15;
 
     public override void Draw()
     {
@@ -93,7 +95,7 @@ internal sealed class WorkshoppaWindow : Window
             var currentCraft = _workshopCache.Crafts.Single(x => x.WorkshopItemId == currentItem.WorkshopItemId);
             ImGui.Text("Currently Crafting:");
 
-            var icon = _iconCache.GetIcon(currentCraft.IconId);
+            IDalamudTextureWrap? icon = _iconCache.GetIcon(currentCraft.IconId);
             if (icon != null)
             {
                 ImGui.Image(icon.Handle, new Vector2(ImGui.GetFrameHeight()));
@@ -235,7 +237,7 @@ internal sealed class WorkshoppaWindow : Window
                          .Where(x => x.Name.Contains(_searchString, StringComparison.OrdinalIgnoreCase))
                          .OrderBy(x => x.WorkshopItemId))
             {
-                var icon = _iconCache.GetIcon(craft.IconId);
+                IDalamudTextureWrap? icon = _iconCache.GetIcon(craft.IconId);
                 Vector2 pos = ImGui.GetCursorPos();
                 Vector2 iconSize = new(ImGui.GetTextLineHeight() + ImGui.GetStyle().ItemSpacing.Y);
 

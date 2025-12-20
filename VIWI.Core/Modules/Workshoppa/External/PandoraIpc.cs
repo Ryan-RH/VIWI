@@ -14,69 +14,40 @@ internal sealed class PandoraIpc
     private readonly ICallGateSubscriber<string, bool?> _getEnabled;
     private readonly ICallGateSubscriber<string, bool, object?> _setEnabled;
 
-    private bool _ipcUnavailable;
-
     public PandoraIpc(IDalamudPluginInterface pluginInterface, IPluginLog pluginLog)
     {
-        _pluginLog = pluginLog ?? throw new ArgumentNullException(nameof(pluginLog));
-
-        if (pluginInterface == null) throw new ArgumentNullException(nameof(pluginInterface));
-
+        _pluginLog = pluginLog;
         _getEnabled = pluginInterface.GetIpcSubscriber<string, bool?>("PandorasBox.GetFeatureEnabled");
         _setEnabled = pluginInterface.GetIpcSubscriber<string, bool, object?>("PandorasBox.SetFeatureEnabled");
     }
 
     public bool? DisableIfNecessary()
     {
-        if (_ipcUnavailable) return null;
-
         try
         {
-            var enabled = _getEnabled.InvokeFunc(AutoTurnInFeature);
-            _pluginLog.Debug($"[Workshoppa] Pandora '{AutoTurnInFeature}' enabled = {enabled?.ToString() ?? "null"}");
-
+            bool? enabled = _getEnabled.InvokeFunc(AutoTurnInFeature);
+            _pluginLog.Information($"Pandora's {AutoTurnInFeature} is {enabled?.ToString() ?? "null"}");
             if (enabled == true)
                 _setEnabled.InvokeAction(AutoTurnInFeature, false);
 
             return enabled;
         }
-        catch (IpcNotReadyError ex)
+        catch (IpcNotReadyError e)
         {
-            // Pandora installed but not ready yet.
-            _pluginLog.Debug(ex, "[Workshoppa] Pandora IPC not ready.");
-            return null;
-        }
-        catch (IpcError ex)
-        {
-            _pluginLog.Warning(ex, "[Workshoppa] Pandora IPC error; ignoring.");
-            return null;
-        }
-        catch (Exception ex)
-        {
-            _pluginLog.Warning(ex, "[Workshoppa] Unexpected Pandora IPC exception; ignoring.");
+            _pluginLog.Information(e, "Unable to read pandora state");
             return null;
         }
     }
 
     public void Enable()
     {
-        if (_ipcUnavailable) return;
-
         try
         {
             _setEnabled.InvokeAction(AutoTurnInFeature, true);
         }
-        catch (IpcNotReadyError ex)
+        catch (IpcNotReadyError e)
         {
-            _pluginLog.Debug(ex, "[Workshoppa] Pandora IPC not ready while restoring.");
-        }
-        catch (IpcError ex)
-        {
-            _pluginLog.Warning(ex, "[Workshoppa] Pandora IPC error while restoring; ignoring.");
-        }
-        catch (Exception ex)
-        {
-            _pluginLog.Warning(ex, "[Workshoppa] Unexpected Pandora IPC exception while restoring; ignoring.");
+            _pluginLog.Error(e, "Unable to restore pandora state");
         }
     }
 }

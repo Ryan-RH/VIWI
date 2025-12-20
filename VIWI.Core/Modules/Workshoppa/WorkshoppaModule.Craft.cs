@@ -1,11 +1,16 @@
-using System;
-using System.Linq;
 using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
+using Dalamud.Plugin.Services;
+using ECommons.Throttlers;
 using FFXIVClientStructs.FFXIV.Client.Game;
 using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
+using System;
+using System.Configuration;
+using System.Linq;
 using VIWI.Core;
+using VIWI.Helpers;
+using VIWI.Modules.Workshoppa.External;
 using VIWI.Modules.Workshoppa.GameData;
 using ValueType = FFXIVClientStructs.FFXIV.Component.GUI.ValueType;
 
@@ -13,79 +18,74 @@ namespace VIWI.Modules.Workshoppa;
 
 internal sealed partial class WorkshoppaModule
 {
-    private uint? contributingItemId;
+    private uint? _contributingItemId;
 
     /// <summary>
     /// Check if delivery window is open when we clicked resume.
     /// </summary>
     private unsafe bool CheckContinueWithDelivery()
     {
-        if (Config.CurrentlyCraftedItem != null)
+        if (_configuration.CurrentlyCraftedItem != null)
         {
             AtkUnitBase* addonMaterialDelivery = GetMaterialDeliveryAddon();
             if (addonMaterialDelivery == null)
                 return false;
 
-            pluginLog.Warning("Material delivery window is open, although unexpected... checking current craft");
+            _pluginLog.Warning("Material delivery window is open, although unexpected... checking current craft");
             CraftState? craftState = ReadCraftState(addonMaterialDelivery);
             if (craftState == null || craftState.ResultItem == 0)
             {
-                pluginLog.Error("Unable to read craft state");
-                continueAt = DateTime.Now.AddSeconds(1);
+                _pluginLog.Error("Unable to read craft state");
+                _continueAt = DateTime.Now.AddSeconds(1);
                 return false;
             }
 
-            var craft = workshopCache.Crafts.SingleOrDefault(x => x.ResultItem == craftState.ResultItem);
-            if (craft == null || craft.WorkshopItemId != Config.CurrentlyCraftedItem.WorkshopItemId)
+            var craft = _workshopCache.Crafts.SingleOrDefault(x => x.ResultItem == craftState.ResultItem);
+            if (craft == null || craft.WorkshopItemId != _configuration.CurrentlyCraftedItem.WorkshopItemId)
             {
-                pluginLog.Error("Unable to match currently crafted item with game state");
-                continueAt = DateTime.Now.AddSeconds(1);
+                _pluginLog.Error("Unable to match currently crafted item with game state");
+                _continueAt = DateTime.Now.AddSeconds(1);
                 return false;
             }
 
-            pluginLog.Information("Delivering materials for current active craft, switching to delivery");
+            _pluginLog.Information("Delivering materials for current active craft, switching to delivery");
             return true;
         }
 
         return false;
     }
-    private WorkshopCraft GetCurrentCraft()
-    {
-        var current = Config.CurrentlyCraftedItem
-            ?? throw new InvalidOperationException("No CurrentlyCraftedItem set.");
-
-        return workshopCache.Crafts.Single(x => x.WorkshopItemId == current.WorkshopItemId);
-    }
 
     private void SelectCraftBranch()
     {
+        if (!EzThrottler.Throttle("Workshoppa.SelectCraftBranch", 200))
+            return;
         if (SelectSelectString("contrib", 0, s => s.StartsWith("Contribute materials.", StringComparison.Ordinal)))
         {
             CurrentStage = Stage.ContributeMaterials;
-            continueAt = DateTime.Now.AddSeconds(1);
+            _continueAt = DateTime.Now.AddSeconds(1);
         }
         else if (SelectSelectString("advance", 0, s => s.StartsWith("Advance to the next phase of production.", StringComparison.Ordinal)))
         {
-            pluginLog.Information("Phase is complete");
+            _pluginLog.Information("Phase is complete");
 
-            Config.CurrentlyCraftedItem!.PhasesComplete++;
-            Config.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase = new();
-            VIWIContext.PluginInterface.SavePluginConfig(Config);
+            _configuration.CurrentlyCraftedItem!.PhasesComplete++;
+            _configuration.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase = new();
+            _pluginInterface.SavePluginConfig(_configuration);
 
             CurrentStage = Stage.TargetFabricationStation;
-            continueAt = DateTime.Now.AddSeconds(3);
+            _continueAt = DateTime.Now.AddSeconds(3);
         }
         else if (SelectSelectString("complete", 0, s => s.StartsWith("Complete the construction of", StringComparison.Ordinal)))
         {
-            pluginLog.Information("Item is almost complete, confirming last cutscene");
+            _pluginLog.Information("Item is almost complete, confirming last cutscene");
             CurrentStage = Stage.TargetFabricationStation;
-            continueAt = DateTime.Now.AddSeconds(3);
+            _continueAt = DateTime.Now.AddSeconds(3);
         }
         else if (SelectSelectString("collect", 0, s => s == "Collect finished product."))
         {
-            pluginLog.Information("Item is complete");
+            _pluginLog.Information("Item is complete");
             CurrentStage = Stage.ConfirmCollectProduct;
-            continueAt = DateTime.Now.AddSeconds(0.25);
+            _continueAt = DateTime.Now.AddSeconds(0.25);
         }
     }
 
@@ -98,15 +98,15 @@ internal sealed partial class WorkshoppaModule
         CraftState? craftState = ReadCraftState(addonMaterialDelivery);
         if (craftState == null || craftState.ResultItem == 0)
         {
-            pluginLog.Warning("Could not parse craft state");
-            continueAt = DateTime.Now.AddSeconds(1);
+            _pluginLog.Warning("Could not parse craft state");
+            _continueAt = DateTime.Now.AddSeconds(1);
             return;
         }
 
-        if (Config.CurrentlyCraftedItem!.UpdateFromCraftState(craftState))
+        if (_configuration.CurrentlyCraftedItem!.UpdateFromCraftState(craftState))
         {
-            pluginLog.Information("Saving updated current craft information");
-            VIWIContext.PluginInterface.SavePluginConfig(Config);
+            _pluginLog.Information("Saving updated current craft information");
+            _pluginInterface.SavePluginConfig(_configuration);
         }
 
         for (int i = 0; i < craftState.Items.Count; ++i)
@@ -117,7 +117,7 @@ internal sealed partial class WorkshoppaModule
 
             if (!HasItemInSingleSlot(item.ItemId, item.ItemCountPerStep))
             {
-                pluginLog.Error(
+                _pluginLog.Error(
                     $"Can't contribute item {item.ItemId} to craft, couldn't find {item.ItemCountPerStep}x in a single inventory slot");
 
                 InventoryManager* inventoryManager = InventoryManager.Instance();
@@ -129,30 +129,29 @@ internal sealed partial class WorkshoppaModule
                 }
 
                 if (itemCount < item.ItemCountPerStep)
-                    chatGui.PrintError(
+                    _chatGui.PrintError(
                         $"[Workshoppa] You don't have the needed {item.ItemCountPerStep}x {item.ItemName} to continue.");
                 else
-                    chatGui.PrintError(
+                    _chatGui.PrintError(
                         $"[Workshoppa] You don't have {item.ItemCountPerStep}x {item.ItemName} in a single stack, you need to merge the items in your inventory manually to continue.");
 
                 CurrentStage = Stage.RequestStop;
                 break;
             }
 
-            externalPluginHandler.SaveTextAdvance();
+            _externalPluginHandler.SaveTextAdvance();
 
-            pluginLog.Information($"Contributing {item.ItemCountPerStep}x {item.ItemName}");
-            contributingItemId = item.ItemId;
+            _pluginLog.Information($"Contributing {item.ItemCountPerStep}x {item.ItemName}");
+            _contributingItemId = item.ItemId;
             var contributeMaterial = stackalloc AtkValue[]
             {
                 new() { Type = ValueType.Int, Int = 0 },
-                //new() { Type = ValueType.UInt, Int = i }, //What is this??
-                new() { Type = ValueType.UInt, UInt = (uint)i },
+                new() { Type = ValueType.UInt, Int = i },
                 new() { Type = ValueType.UInt, UInt = item.ItemCountPerStep },
                 new() { Type = 0, Int = 0 }
             };
             addonMaterialDelivery->FireCallback(4, contributeMaterial);
-            fallbackAt = DateTime.Now.AddSeconds(0.2);
+            _fallbackAt = DateTime.Now.AddSeconds(0.2);
             CurrentStage = Stage.OpenRequestItemWindow;
             break;
         }
@@ -160,15 +159,15 @@ internal sealed partial class WorkshoppaModule
 
     private unsafe void RequestPostSetup(AddonEvent type, AddonArgs addon)
     {
-        var addonRequest = (AddonRequest*)(nint)addon.Addon.Address;
-        pluginLog.Verbose($"{nameof(RequestPostSetup)}: {CurrentStage}, {addonRequest->EntryCount}");
+        var addonRequest = (AddonRequest*)addon.Addon.Address;
+        _pluginLog.Verbose($"{nameof(RequestPostSetup)}: {CurrentStage}, {addonRequest->EntryCount}");
         if (CurrentStage != Stage.OpenRequestItemWindow)
             return;
 
         if (addonRequest->EntryCount != 1)
             return;
 
-        fallbackAt = DateTime.MaxValue;
+        _fallbackAt = DateTime.MaxValue;
         CurrentStage = Stage.OpenRequestItemSelect;
         var contributeMaterial = stackalloc AtkValue[]
         {
@@ -194,16 +193,16 @@ internal sealed partial class WorkshoppaModule
             new() { Type = ValueType.UInt, UInt = 0 },
             new() { Type = 0, Int = 0 },
         };
-        ((AddonContextIconMenu*)(nint)addon.Addon.Address)->AtkUnitBase.FireCallback(5, selectSlot);
+        ((AddonContextIconMenu*)addon.Addon.Address)->AtkUnitBase.FireCallback(5, selectSlot);
     }
 
     private unsafe void RequestPostRefresh(AddonEvent type, AddonArgs addon)
     {
-        pluginLog.Verbose($"{nameof(RequestPostRefresh)}: {CurrentStage}");
+        _pluginLog.Verbose($"{nameof(RequestPostRefresh)}: {CurrentStage}");
         if (CurrentStage != Stage.ConfirmRequestItemWindow)
             return;
 
-        var addonRequest = (AddonRequest*)(nint)addon.Addon.Address;
+        var addonRequest = (AddonRequest*)addon.Addon.Address;
         if (addonRequest->EntryCount != 1)
             return;
 
@@ -217,7 +216,7 @@ internal sealed partial class WorkshoppaModule
         };
         addonRequest->AtkUnitBase.FireCallback(4, closeWindow);
         addonRequest->AtkUnitBase.Close(false);
-        externalPluginHandler.RestoreTextAdvance();
+        _externalPluginHandler.RestoreTextAdvance();
     }
 
     private unsafe void ConfirmMaterialDeliveryFollowUp()
@@ -229,27 +228,27 @@ internal sealed partial class WorkshoppaModule
         CraftState? craftState = ReadCraftState(addonMaterialDelivery);
         if (craftState == null || craftState.ResultItem == 0)
         {
-            pluginLog.Warning("Could not parse craft state");
-            continueAt = DateTime.Now.AddSeconds(1);
+            _pluginLog.Warning("Could not parse craft state");
+            _continueAt = DateTime.Now.AddSeconds(1);
             return;
         }
 
-        var item = craftState.Items.Single(x => x.ItemId == contributingItemId);
+        var item = craftState.Items.Single(x => x.ItemId == _contributingItemId);
         item.StepsComplete++;
         if (craftState.IsPhaseComplete())
         {
             CurrentStage = Stage.TargetFabricationStation;
-            continueAt = DateTime.Now.AddSeconds(0.5);
+            _continueAt = DateTime.Now.AddSeconds(0.5);
         }
         else
         {
-            Config.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase
+            _configuration.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase
                 .Single(x => x.ItemId == item.ItemId)
                 .QuantityComplete = item.QuantityComplete;
-            VIWIContext.PluginInterface.SavePluginConfig(Config);
+            _pluginInterface.SavePluginConfig(_configuration);
 
             CurrentStage = Stage.ContributeMaterials;
-            continueAt = DateTime.Now.AddSeconds(1);
+            _continueAt = DateTime.Now.AddSeconds(1);
         }
     }
 }

@@ -20,15 +20,15 @@ namespace VIWI.UI.Pages
 
         public void SetEnabled(bool value)
         {
-            WorkshoppaModule.Config.Enabled = value;
+            WorkshoppaModule._configuration.Enabled = value;
             WorkshoppaModule.SaveConfig();
 
-            WorkshoppaModule.Instance?.ApplyEnabledState(value);
+            WorkshoppaModule.SetEnabled(value);
         }
 
         public void Draw()
         {
-            var config = WorkshoppaModule.Config;
+            var config = WorkshoppaModule._configuration;
             ImGuiHelpers.ScaledDummy(4f);
 
             ImGui.TextUnformatted($"Workshoppa - V{Version}");
