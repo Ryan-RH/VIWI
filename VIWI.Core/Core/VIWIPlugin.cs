@@ -4,6 +4,9 @@ using Dalamud.Plugin;
 using Dalamud.Plugin.Services;
 using ECommons;
 using ECommons.Logging;
+using System;
+using System.Configuration;
+using VIWI.Core.Config;
 using VIWI.UI.Windows;
 
 namespace VIWI.Core;
@@ -13,6 +16,7 @@ public sealed class VIWIPlugin : IDalamudPlugin
     public static string Name => "VIWI Core";
     public const bool DEVMODE = false;
     public static VIWIPlugin Instance { get; private set; } = null!;
+    private readonly VIWIConfig config = null!;
 
     //public IDalamudPluginInterface PluginInterface { get; }
     [PluginService] internal static IPluginLog PluginLog { get; private set; } = null!;
@@ -83,7 +87,25 @@ public sealed class VIWIPlugin : IDalamudPlugin
         {
             HelpMessage = "Opens the VIWI dashboard."
         });
-        ModuleManager.Initialize();
+        object? raw = null;
+        try
+        {
+            raw = PluginInterface.GetPluginConfig();
+            PluginLog.Information($"[VIWI] GetPluginConfig() returned: {(raw == null ? "null" : raw.GetType().FullName)}");
+        }
+        catch (Exception ex)
+        {
+            PluginLog.Error(ex, "[VIWI] GetPluginConfig() threw an exception.");
+        }
+
+        var loaded = raw as VIWI.Core.Config.VIWIConfig;
+        PluginLog.Information($"[VIWI] Cast to VIWIConfig success? {loaded != null}");
+
+        var config = loaded ?? new VIWI.Core.Config.VIWIConfig();
+        PluginLog.Information($"[VIWI] After load: AutoLogin.Enabled={config.AutoLogin?.Enabled}, HCMode={config.AutoLogin?.HCMode}, SkipAuth={config.AutoLogin?.SkipAuthError}");
+
+        config.Initialize(PluginInterface);
+        ModuleManager.Initialize(config);
     }
 
     public void Dispose()

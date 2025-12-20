@@ -1,5 +1,7 @@
 using ECommons.Logging;
 using VIWI.Core;
+using VIWI.Core.Config;
+using VIWI.Modules.AutoLogin;
 
 namespace VIWI.Modules.AoEasy
 {
@@ -11,10 +13,11 @@ namespace VIWI.Modules.AoEasy
         public string Name => ModuleName;
         public string Version => ModuleVersion;
 
-        public static AoEasyConfig Config { get; private set; } = null!;
-        public static bool Enabled => Config?.Enabled ?? false;
+        private VIWIConfig vConfig = null!;
+        public static AoEasyConfig _configuration = null!;
+        public static bool Enabled => _configuration?.Enabled ?? false;
 
-        public void Initialize()
+        public void Initialize(VIWIConfig config)
         {
             PluginLog.Information("[VIWI.AoEasy] Initializing...");
 
@@ -32,15 +35,15 @@ namespace VIWI.Modules.AoEasy
 
         public static void LoadConfig()
         {
-            Config = VIWIContext.PluginInterface.GetPluginConfig() as AoEasyConfig
+            /*_configuration = VIWIContext.PluginInterface.GetPluginConfig() as AoEasyConfig
                      ?? new AoEasyConfig();
 
-            SaveConfig();
+            SaveConfig();*/
         }
 
         public static void SaveConfig()
         {
-            Config.Save();
+            //_configuration.Save();
         }
         public void Update()
         {

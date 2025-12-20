@@ -25,12 +25,17 @@ namespace VIWI.UI.Pages
 
         public void SetEnabled(bool value)
         {
-            AutoLoginModule.SetEnabled(value);
+            AutoLoginModule.Instance?.SetEnabled(value);
         }
 
         public void Draw()
         {
-            var config = AutoLoginModule.Config;
+            var config = AutoLoginModule._configuration;
+            if (config == null)
+            {
+                ImGui.TextDisabled("AutoLogin is not initialized yet.");
+                return;
+            }
             ImGuiHelpers.ScaledDummy(4f);
             ImGui.TextUnformatted($"AutoLogin - V{Version}");
             ImGui.TextColored(GradientColor.Get(ImGuiHelper.RainbowColorStart, ImGuiHelper.RainbowColorEnd, 500), "DDoS Begone!");
@@ -84,7 +89,7 @@ namespace VIWI.UI.Pages
                 config.HCCurrentWorldName = config.CurrentWorldName;
                 config.HCvDataCenterID = config.vDataCenterID;
                 config.HCvDataCenterName = config.vDataCenterName;
-                AutoLoginModule.SaveConfig();
+                AutoLoginModule.Instance?.SaveConfig();
             }
             ImGuiComponents.HelpMarker("--- Hardcore Mode will save your preferred character ---\nThis prioritizes logging back into the stored character \nin the event of a disconnect rather than the one \nyou were currently on (unless its the same one, duh!).");
             if (HCMode)
@@ -117,7 +122,7 @@ namespace VIWI.UI.Pages
             if (ImGui.Checkbox("Skip Auth", ref skipAuth))
             {
                 config.SkipAuthError = skipAuth;
-                AutoLoginModule.SaveConfig();
+                AutoLoginModule.Instance?.SaveConfig();
             }
             ImGuiComponents.HelpMarker("Experimental: Will attempt to bypass Auth Errors.... I think?");
 

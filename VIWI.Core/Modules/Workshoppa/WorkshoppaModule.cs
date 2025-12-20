@@ -18,6 +18,8 @@ using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Linq.Expressions;
 using VIWI.Core;
+using VIWI.Core.Config;
+using VIWI.Modules.AutoLogin;
 using VIWI.Modules.Workshoppa.External;
 using VIWI.Modules.Workshoppa.GameData;
 using VIWI.Modules.Workshoppa.Windows;
@@ -36,7 +38,8 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
     internal static WorkshoppaModule? Instance { get; private set; }
 
     // ---- Config ----
-    public static WorkshoppaConfig _configuration { get; private set; } = null!;
+    private VIWIConfig vConfig = null!;
+    public static WorkshoppaConfig _configuration = null!;
     public static bool Enabled => _configuration?.Enabled ?? false;
 
     // ---- Services ----
@@ -93,7 +96,7 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
         _pluginLog = VIWIContext.PluginLog;
     }
 
-    public void Initialize()
+    public void Initialize(VIWIConfig config)
     {
         if (initialized) return;
         initialized = true;
@@ -101,7 +104,7 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
         Instance = this;
         LoadConfig();
         _externalPluginHandler = new ExternalPluginHandler(_pluginInterface, _pluginLog);
-        _configuration = (WorkshoppaConfig?)_pluginInterface.GetPluginConfig() ?? new WorkshoppaConfig();
+        //_configuration = (WorkshoppaConfig?)_pluginInterface.GetPluginConfig() ?? new WorkshoppaConfig();
         _workshopCache = new WorkshopCache(dataManager, _pluginLog);
         _gameStrings = new(dataManager, _pluginLog);
 
@@ -218,13 +221,13 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
     // ----------------------------
     public static void LoadConfig()
     {
-        _configuration = VIWIContext.PluginInterface.GetPluginConfig() as WorkshoppaConfig ?? new WorkshoppaConfig();
-        SaveConfig();
+        /*_configuration = VIWIContext.PluginInterface.GetPluginConfig() as WorkshoppaConfig ?? new WorkshoppaConfig();
+        SaveConfig();*/
     }
 
     public static void SaveConfig()
     {
-        _configuration?.Save();
+        //_configuration?.Save();
     }
     public void ToggleWorkshoppaUi()
     {
@@ -308,7 +311,7 @@ internal sealed partial class WorkshoppaModule : IVIWIModule
             }
 
             if (CurrentStage != Stage.Stopped && CurrentStage != Stage.RequestStop && !_externalPluginHandler.Saved)
-                _externalPluginHandler.Save();
+                //_externalPluginHandler.Save();
 
             switch (CurrentStage)
             {

@@ -4,7 +4,7 @@ using System;
 namespace VIWI.Modules.AutoLogin
 {
     [Serializable]
-    public class AutoLoginConfig : IPluginConfiguration
+    public class AutoLoginConfig
     {
         public int Version { get; set; } = 1;
         public bool Enabled { get; set; } = false;
@@ -34,9 +34,5 @@ namespace VIWI.Modules.AutoLogin
         public int HCvDataCenterID { get; set; } = 0;
         public string HCvDataCenterName { get; set; } = "";
 
-        public void Save()
-        {
-            VIWI.Core.VIWIContext.PluginInterface.SavePluginConfig(this);
-        }
     }
 }

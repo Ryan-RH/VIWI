@@ -18,13 +18,13 @@ namespace VIWI.UI.Pages
 
         public void SetEnabled(bool value)
         {
-            AoEasyModule.Config.Enabled = value;
+            AoEasyModule._configuration.Enabled = value;
             AoEasyModule.SaveConfig();
         }
 
         public void Draw()
         {
-            var config = AoEasyModule.Config;
+            var config = AoEasyModule._configuration;
             ImGuiHelpers.ScaledDummy(4f);
             ImGui.TextUnformatted($"AoEasy – Stop Running Away From Me! - V{Version}");
             ImGui.TextUnformatted($"Enabled: {config.Enabled}");

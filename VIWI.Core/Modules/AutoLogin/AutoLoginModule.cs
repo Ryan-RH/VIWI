@@ -4,6 +4,7 @@ using Dalamud.Plugin.Services;
 using ECommons;
 using ECommons.Automation.NeoTaskManager;
 using ECommons.Automation.UIInput;
+using ECommons.Configuration;
 using ECommons.ExcelServices;
 using ECommons.Logging;
 using ECommons.Throttlers;
@@ -13,7 +14,9 @@ using Lumina.Excel.Sheets;
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using TerraFX.Interop.DirectX;
 using VIWI.Core;
+using VIWI.Core.Config;
 using VIWI.Helpers;
 
 namespace VIWI.Modules.AutoLogin
@@ -27,8 +30,10 @@ namespace VIWI.Modules.AutoLogin
         public string Version => ModuleVersion;
 
         internal static AutoLoginModule? Instance { get; private set; }
-        public static AutoLoginConfig Config { get; private set; } = null!;
-        public static bool Enabled => Config?.Enabled ?? false;
+
+        private VIWIConfig vConfig = null!;
+        public static AutoLoginConfig _configuration = null!;
+        public static bool Enabled => _configuration?.Enabled ?? false;
 
         private readonly ICommandManager commandManager;
         private readonly IDataManager dataManager;
@@ -39,7 +44,7 @@ namespace VIWI.Modules.AutoLogin
         private readonly ISigScanner sigScanner;
         private readonly IGameInteropProvider hookProvider;
 
-        private static readonly TaskManager TaskManager = new();
+        private TaskManager taskManager = new();
 
         //internal IntPtr StartHandler;
         //internal IntPtr LoginHandler;
@@ -72,15 +77,21 @@ namespace VIWI.Modules.AutoLogin
         // Skeleton Loop
         // ----------------------------
 
-        public void Initialize()
+        public void Initialize(VIWIConfig config)
         {
             Instance = this;
-            LoadConfig();
+            vConfig = config ?? throw new ArgumentNullException(nameof(config));
 
-            if (Config.Enabled)
-                Enable();
+            if (vConfig.AutoLogin == null)
+                vConfig.AutoLogin = new AutoLoginConfig();
+
+            _configuration = vConfig.AutoLogin;
 
             PluginLog.Information("[AutoLogin] Module initialized.");
+            PluginLog.Information($"[AutoLogin] Module Config Loaded. Enabled={_configuration.Enabled}");
+
+            if (_configuration.Enabled)
+                Enable();
         }
         private void Enable()
         {
@@ -100,38 +111,39 @@ namespace VIWI.Modules.AutoLogin
             clientState.Logout -= OnLogout;
             clientState.TerritoryChanged -= TerritoryChange;
 
-            TaskManager.Dispose();
+            taskManager.Dispose();
         }
 
-        public static void SetEnabled(bool value)
+        public void SetEnabled(bool value)
         {
-            if (Config == null) return;
+            var inst = Instance;
 
-            Config.Enabled = value;
-            SaveConfig();
+            if (inst == null)
+            {
+                PluginLog.Error("[AutoLogin] SetEnabled called but module is not initialized (Instance is null).");
+                return;
+            }
 
-            if (value)
-                Instance?.Enable();
-            else
-                Instance?.Disable();
+            if (_configuration == null)
+            {
+                PluginLog.Error("[AutoLogin] SetEnabled called but config is null (module init incomplete).");
+                return;
+            }
+
+            _configuration.Enabled = value;
+            inst.vConfig.Save();
+
+            if (value) inst.Enable();
+            else inst.Disable();
         }
 
         // ----------------------------
         // Config Handlers
         // ----------------------------
 
-
-        public static void LoadConfig()
+        public void SaveConfig()
         {
-            Config = VIWIContext.PluginInterface.GetPluginConfig() as AutoLoginConfig
-                     ?? new AutoLoginConfig();
-
-            SaveConfig();
-        }
-
-        public static void SaveConfig()
-        {
-            Config?.Save();
+            vConfig.Save();
         }
 
         // ----------------------------
@@ -146,7 +158,7 @@ namespace VIWI.Modules.AutoLogin
         }
         private void OnLogout(int type, int code)
         {
-            if (!Config.Enabled) return;
+            if (!_configuration.Enabled) return;
 
             if ((code == 90001 || code == 90002) || code == 90006 || code == 90007)
             {
@@ -157,10 +169,10 @@ namespace VIWI.Modules.AutoLogin
                 _inErrorRecovery = true;
                 _lastErrorEpisode = DateTime.UtcNow;
 
-                TaskManager.Abort();
-                TaskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
-                TaskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors"); //For some ungodly reason there is two windows here so we have to call this twice *only* on logouts???
-                TaskManager.Enqueue(() =>
+                taskManager.Abort();
+                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
+                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors"); //For some ungodly reason there is two windows here so we have to call this twice *only* on logouts???
+                taskManager.Enqueue(() =>
                 {
                     if (IsLobbyError2002Screen()) return false;
                     StartAutoLogin();
@@ -171,7 +183,7 @@ namespace VIWI.Modules.AutoLogin
         }
         public void NoKill()
         {
-            if (!Config.Enabled) return;
+            if (!_configuration.Enabled) return;
             if (noKillHookInitialized && LobbyErrorHandlerHook is { IsEnabled: true })
                 return;
 
@@ -191,12 +203,12 @@ namespace VIWI.Modules.AutoLogin
             UInt16 v4_16 = (UInt16)(v4);
             PluginLog.Debug($"LobbyErrorHandler a1:{a1} a2:{a2} a3:{a3} t1:{t1} v4:{v4_16}");
 
-            if (!Config.Enabled)
+            if (!_configuration.Enabled)
                 return LobbyErrorHandlerHook!.Original(a1, a2, a3);
 
             if (v4 > 0)
             {
-                if (v4_16 == 0x332C && Config.SkipAuthError)
+                if (v4_16 == 0x332C && _configuration.SkipAuthError)
                 {
                     PluginLog.Debug($"Skip Auth Error");
                 }
@@ -223,39 +235,39 @@ namespace VIWI.Modules.AutoLogin
             if (!clientState.IsLoggedIn || player == null)
                 return;
 
-            if (player.CharacterName != Config.CharacterName || string.IsNullOrEmpty(Config.CharacterName))
+            if (player.CharacterName != _configuration.CharacterName || string.IsNullOrEmpty(_configuration.CharacterName))
             {
-                Config.CharacterName = player.CharacterName;
+                _configuration.CharacterName = player.CharacterName;
             }
 
-            if (player.HomeWorld.Value.Name.ExtractText() != Config.HomeWorldName || string.IsNullOrEmpty(Config.HomeWorldName))
+            if (player.HomeWorld.Value.Name.ExtractText() != _configuration.HomeWorldName || string.IsNullOrEmpty(_configuration.HomeWorldName))
             {
-                Config.HomeWorldName = player.HomeWorld.Value.Name.ExtractText();
+                _configuration.HomeWorldName = player.HomeWorld.Value.Name.ExtractText();
             }
             var worldSheet = dataManager.GetExcelSheet<World>();
             var worldRow = worldSheet?.GetRow(player.HomeWorld.RowId);
             if (worldRow != null)
             {
-                Config.DataCenterID = (int)worldRow.Value.DataCenter.RowId;
-                Config.DataCenterName = worldRow.Value.DataCenter.Value.Name.ExtractText();
+                _configuration.DataCenterID = (int)worldRow.Value.DataCenter.RowId;
+                _configuration.DataCenterName = worldRow.Value.DataCenter.Value.Name.ExtractText();
             }
 
 
-            Config.CurrentWorldName = player.CurrentWorld.Value.Name.ExtractText();
-            Config.Visiting = !string.Equals(Config.CurrentWorldName, Config.HomeWorldName, StringComparison.Ordinal);            
+            _configuration.CurrentWorldName = player.CurrentWorld.Value.Name.ExtractText();
+            _configuration.Visiting = !string.Equals(_configuration.CurrentWorldName, _configuration.HomeWorldName, StringComparison.Ordinal);            
             var cWorldRow = worldSheet?.GetRow(player.CurrentWorld.RowId);
             if (cWorldRow != null)
             {
-                Config.vDataCenterID = (int)cWorldRow.Value.DataCenter.RowId;
-                Config.vDataCenterName = cWorldRow.Value.DataCenter.Value.Name.ExtractText();
+                _configuration.vDataCenterID = (int)cWorldRow.Value.DataCenter.RowId;
+                _configuration.vDataCenterName = cWorldRow.Value.DataCenter.Value.Name.ExtractText();
             }
 
-            if (Config.HCMode)
+            if (_configuration.HCMode)
             {
-                Config.HCCurrentWorldName = Config.CurrentWorldName;
-                Config.HCVisiting = Config.Visiting;
-                Config.HCvDataCenterID = Config.vDataCenterID;
-                Config.HCvDataCenterName = Config.vDataCenterName;
+                _configuration.HCCurrentWorldName = _configuration.CurrentWorldName;
+                _configuration.HCVisiting = _configuration.Visiting;
+                _configuration.HCvDataCenterID = _configuration.vDataCenterID;
+                _configuration.HCvDataCenterName = _configuration.vDataCenterName;
             }
 
             SaveConfig();
@@ -263,14 +275,14 @@ namespace VIWI.Modules.AutoLogin
 
         private void OnCommand(string command, string args)
         {
-            Config.Enabled = !Config.Enabled;
+            _configuration.Enabled = !_configuration.Enabled;
             SaveConfig();
-            PluginLog.Information($"[AutoLogin] Auto-login {(Config.Enabled ? "enabled" : "disabled")}.");
+            PluginLog.Information($"[AutoLogin] Auto-login {(_configuration.Enabled ? "enabled" : "disabled")}.");
         }
 
         private void OnFrameworkUpdate(IFramework _)
         {
-            if (!Config.Enabled) return;
+            if (!_configuration.Enabled) return;
 
             var errorVisible = IsLobbyError2002Screen();
 
@@ -281,9 +293,9 @@ namespace VIWI.Modules.AutoLogin
 
                 PluginLog.Warning("[AutoLogin] Lobby error detected (likely 2002). Switching to error clear + resume.");
 
-                TaskManager.Abort();
-                TaskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
-                TaskManager.Enqueue(() =>
+                taskManager.Abort();
+                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
+                taskManager.Enqueue(() =>
                 {
                     if (IsLobbyError2002Screen()) return false;
                     StartAutoLogin();
@@ -300,7 +312,7 @@ namespace VIWI.Modules.AutoLogin
                     _inErrorRecovery = false;
             }
 
-            if (TaskManager.IsBusy) return;
+            if (taskManager.IsBusy) return;
         }
 
         // ----------------------------
@@ -309,18 +321,18 @@ namespace VIWI.Modules.AutoLogin
 
         public void StartAutoLogin()
         {
-            if (!Config.Enabled) return;
-            var hWorld = Config.HCMode ? Config.HCHomeWorldName : Config.HomeWorldName;
-            var dc = Config.HCMode ? Config.HCDataCenterID : Config.DataCenterID;
-            var chara = Config.HCMode ? Config.HCCharacterName : Config.CharacterName;
-            var cWorld = Config.HCMode ? Config.HCCurrentWorldName : Config.CurrentWorldName;
-            var visit = Config.HCMode ? Config.HCVisiting : Config.Visiting;
+            if (!_configuration.Enabled) return;
+            var hWorld = _configuration.HCMode ? _configuration.HCHomeWorldName : _configuration.HomeWorldName;
+            var dc = _configuration.HCMode ? _configuration.HCDataCenterID : _configuration.DataCenterID;
+            var chara = _configuration.HCMode ? _configuration.HCCharacterName : _configuration.CharacterName;
+            var cWorld = _configuration.HCMode ? _configuration.HCCurrentWorldName : _configuration.CurrentWorldName;
+            var visit = _configuration.HCMode ? _configuration.HCVisiting : _configuration.Visiting;
 
-            TaskManager.Enqueue(() => SelectDataCenterMenu(), "SelectDataCenterMenu");
-            TaskManager.Enqueue(() => SelectDataCenter(dc, cWorld), "SelectDataCenter");
-            //TaskManager.Enqueue(() => SelectWorldServer(hWorld), "SelectWorldServer");
-            TaskManager.Enqueue(() => SelectCharacter(chara, hWorld, cWorld, dc), "SelectCharacter");
-            TaskManager.Enqueue(() => ConfirmLogin(), "ConfirmLogin");
+            taskManager.Enqueue(() => SelectDataCenterMenu(), "SelectDataCenterMenu");
+            taskManager.Enqueue(() => SelectDataCenter(dc, cWorld), "SelectDataCenter");
+            //taskManager.Enqueue(() => SelectWorldServer(hWorld), "SelectWorldServer");
+            taskManager.Enqueue(() => SelectCharacter(chara, hWorld, cWorld, dc), "SelectCharacter");
+            taskManager.Enqueue(() => ConfirmLogin(), "ConfirmLogin");
         }
         private bool HasLobbyErrorDialogue()
         {

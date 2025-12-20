@@ -4,7 +4,7 @@ using System;
 namespace VIWI.Modules.AoEasy
 {
     [Serializable]
-    public class AoEasyConfig : IPluginConfiguration
+    public class AoEasyConfig
     {
         public int Version { get; set; } = 1;
 
@@ -12,7 +12,7 @@ namespace VIWI.Modules.AoEasy
 
         public void Save()
         {
-            VIWI.Core.VIWIContext.PluginInterface.SavePluginConfig(this);
+            //VIWI.Core.VIWIContext.PluginInterface.SavePluginConfig(this);
         }
     }
 }

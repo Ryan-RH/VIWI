@@ -271,7 +271,10 @@ internal sealed class WorkshoppaWindow : Window
         ImGui.Text($"Debug (Stage): {_module.CurrentStage}");
     }
 
-    private void Save() => _config.Save();
+    private void Save()
+    {
+        //_config.Save();
+    }
 
     public void Toggle(EOpenReason reason)
     {

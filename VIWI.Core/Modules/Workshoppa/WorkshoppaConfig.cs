@@ -6,7 +6,7 @@ using VIWI.Modules.Workshoppa.GameData;
 
 namespace VIWI.Modules.Workshoppa;
 
-internal sealed class WorkshoppaConfig : IPluginConfiguration
+public sealed class WorkshoppaConfig
 {
     public int Version { get; set; } = 1;
     public bool Enabled { get; set; } = false;
@@ -17,13 +17,13 @@ internal sealed class WorkshoppaConfig : IPluginConfiguration
     public bool EnableCeruleumTankCalculator { get; set; } = true;
     public List<Preset> Presets { get; set; } = new();
 
-    internal sealed class QueuedItem
+    public sealed class QueuedItem
     {
         public uint WorkshopItemId { get; set; }
         public int Quantity { get; set; }
     }
 
-    internal sealed class CurrentItem
+    public sealed class CurrentItem
     {
         public uint WorkshopItemId { get; set; }
         public bool StartedCrafting { get; set; }
@@ -73,20 +73,16 @@ internal sealed class WorkshoppaConfig : IPluginConfiguration
         }
     }
 
-    internal sealed class PhaseItem
+    public sealed class PhaseItem
     {
         public uint ItemId { get; set; }
         public uint QuantityComplete { get; set; }
     }
 
-    internal sealed class Preset
+    public sealed class Preset
     {
         public required Guid Id { get; set; }
         public required string Name { get; set; }
         public List<QueuedItem> ItemQueue { get; set; } = new();
-    }
-    public void Save()
-    {
-        VIWI.Core.VIWIContext.PluginInterface.SavePluginConfig(this);
     }
 }

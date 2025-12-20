@@ -70,7 +70,7 @@ internal sealed partial class WorkshoppaModule
 
             _configuration.CurrentlyCraftedItem!.PhasesComplete++;
             _configuration.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase = new();
-            _pluginInterface.SavePluginConfig(_configuration);
+            //_pluginInterface.SavePluginConfig(_configuration);
 
             CurrentStage = Stage.TargetFabricationStation;
             _continueAt = DateTime.Now.AddSeconds(3);
@@ -106,7 +106,7 @@ internal sealed partial class WorkshoppaModule
         if (_configuration.CurrentlyCraftedItem!.UpdateFromCraftState(craftState))
         {
             _pluginLog.Information("Saving updated current craft information");
-            _pluginInterface.SavePluginConfig(_configuration);
+            //_pluginInterface.SavePluginConfig(_configuration);
         }
 
         for (int i = 0; i < craftState.Items.Count; ++i)
@@ -245,7 +245,7 @@ internal sealed partial class WorkshoppaModule
             _configuration.CurrentlyCraftedItem!.ContributedItemsInCurrentPhase
                 .Single(x => x.ItemId == item.ItemId)
                 .QuantityComplete = item.QuantityComplete;
-            _pluginInterface.SavePluginConfig(_configuration);
+            //_pluginInterface.SavePluginConfig(_configuration);
 
             CurrentStage = Stage.ContributeMaterials;
             _continueAt = DateTime.Now.AddSeconds(1);

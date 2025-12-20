@@ -42,7 +42,7 @@ internal sealed partial class WorkshoppaModule
                     _configuration.ItemQueue.Remove(firstItem);
             }
 
-            _pluginInterface.SavePluginConfig(_configuration);
+            //_pluginInterface.SavePluginConfig(_configuration);
             if (_configuration.CurrentlyCraftedItem != null)
                 CurrentStage = Stage.TargetFabricationStation;
             else
@@ -175,7 +175,7 @@ internal sealed partial class WorkshoppaModule
         if (SelectSelectYesno(0, s => s.StartsWith("Craft ", StringComparison.Ordinal)))
         {
             _configuration.CurrentlyCraftedItem!.StartedCrafting = true;
-            _pluginInterface.SavePluginConfig(_configuration);
+            //_pluginInterface.SavePluginConfig(_configuration);
 
             CurrentStage = Stage.TargetFabricationStation;
         }

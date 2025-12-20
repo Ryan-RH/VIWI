@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using ECommons.Logging;
+using VIWI.Core.Config;
 
 namespace VIWI.Core
 {
@@ -10,9 +11,15 @@ namespace VIWI.Core
     {
         private static readonly List<IVIWIModule> modules = new();
         private static bool initialized;
+
         public static IReadOnlyList<IVIWIModule> Modules => modules;
-        public static void Initialize()
+        public static VIWIConfig Config { get; private set; } = null!;
+
+        public static void Initialize(VIWIConfig config)
         {
+            if (config == null)
+                throw new ArgumentNullException(nameof(config), "[VIWI] ModuleManager.Initialize received null config.");
+
             if (initialized)
             {
                 PluginLog.Warning("ModuleManager.Initialize called more than once; ignoring.");
@@ -20,13 +27,19 @@ namespace VIWI.Core
             }
 
             initialized = true;
+            Config = config;
+
             PluginLog.Information("Loading VIWI modules...");
 
             try
             {
                 foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
                 {
-                    LoadModulesFromAssembly(asm);
+                    var name = asm.GetName().Name ?? string.Empty;
+                    if (!name.StartsWith("VIWI", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    LoadModulesFromAssembly(asm, config);
                 }
             }
             catch (Exception ex)
@@ -36,6 +49,7 @@ namespace VIWI.Core
 
             PluginLog.Information($"Loaded {modules.Count} module(s).");
         }
+
         public static void Dispose()
         {
             if (!initialized)
@@ -59,7 +73,7 @@ namespace VIWI.Core
             initialized = false;
         }
 
-        private static void LoadModulesFromAssembly(Assembly asm)
+        private static void LoadModulesFromAssembly(Assembly asm, VIWIConfig config)
         {
             IEnumerable<Type> moduleTypes;
 
@@ -76,19 +90,22 @@ namespace VIWI.Core
             {
                 moduleTypes = rtle.Types
                     .Where(t => t != null &&
-                        typeof(IVIWIModule).IsAssignableFrom(t) &&
-                        !t.IsInterface &&
-                        !t.IsAbstract)!;
+                                typeof(IVIWIModule).IsAssignableFrom(t) &&
+                                !t.IsInterface &&
+                                !t.IsAbstract)!;
             }
 
             foreach (var type in moduleTypes)
             {
                 try
                 {
-                    if (Activator.CreateInstance(type) is not IVIWIModule module)
+                    var module = CreateModuleInstance(type, config);
+                    if (module == null)
                         continue;
+
                     modules.Add(module);
-                    module.Initialize();
+                    module.Initialize(config);
+
                     PluginLog.Information($"Loaded module: {module.Name} v{module.Version}");
                 }
                 catch (Exception ex)
@@ -97,11 +114,24 @@ namespace VIWI.Core
                 }
             }
         }
+
+        private static IVIWIModule? CreateModuleInstance(Type type, VIWIConfig config)
+        {
+            var ctorWithConfig = type.GetConstructor(new[] { typeof(VIWIConfig) });
+            if (ctorWithConfig != null)
+                return ctorWithConfig.Invoke(new object[] { config }) as IVIWIModule;
+
+            if (Activator.CreateInstance(type) is IVIWIModule m)
+                return m;
+
+            return null;
+        }
     }
+
     public interface IVIWIModule : IDisposable
     {
         string Name { get; }
         string Version { get; }
-        void Initialize();
+        void Initialize(VIWIConfig config);
     }
 }
