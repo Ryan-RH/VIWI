@@ -63,7 +63,7 @@ namespace VIWI.UI.Pages
                     ImGui.TextUnformatted($"Current World: {config.CurrentWorldName}, on {config.vDataCenterName} ({config.vDataCenterID})");
                 }
                 ImGui.TextUnformatted($"Home Data Center: {config.DataCenterName} ({config.DataCenterID})");
-                //ImGui.TextUnformatted($"Service Account Index: {config.AccountIndex}");
+                ImGui.TextUnformatted($"Service Account Index: {config.ServiceAccountIndex}");
             }
             else
             {

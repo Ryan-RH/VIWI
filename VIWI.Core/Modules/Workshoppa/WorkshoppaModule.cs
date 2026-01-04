@@ -3,17 +3,14 @@ using Dalamud.Game.Addon.Lifecycle;
 using Dalamud.Game.ClientState.Conditions;
 using Dalamud.Game.Command;
 using Dalamud.Plugin.Services;
-using ECommons.Throttlers;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics.CodeAnalysis;
 using System.Linq;
-using System.Xml.Linq;
 using VIWI.Core;
 using VIWI.Modules.Workshoppa.External;
 using VIWI.Modules.Workshoppa.GameData;
 using VIWI.Modules.Workshoppa.Windows;
-using static FFXIVClientStructs.FFXIV.Component.GUI.AtkComponentList;
 using static VIWI.Core.VIWIContext;
 using static VIWI.Modules.Workshoppa.WorkshoppaConfig;
 
@@ -23,7 +20,7 @@ namespace VIWI.Modules.Workshoppa;
 internal sealed partial class WorkshoppaModule : VIWIModuleBase<WorkshoppaConfig>
 {
     public const string ModuleName = "Workshoppa";
-    public const string ModuleVersion = "1.0.1";
+    public const string ModuleVersion = "1.0.2";
     public override string Name => ModuleName;
     public override string Version => ModuleVersion;
     public WorkshoppaConfig _configuration => ModuleConfig;

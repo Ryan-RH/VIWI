@@ -9,6 +9,7 @@ namespace VIWI.Modules.AutoLogin
         public bool Enabled { get; set; } = false;
         public bool HCMode { get; set; } = false;
         public bool SkipAuthError { get; set; } = false;
+        public int ServiceAccountIndex { get; set; } = 0;
 
 
         public string CharacterName { get; set; } = "";

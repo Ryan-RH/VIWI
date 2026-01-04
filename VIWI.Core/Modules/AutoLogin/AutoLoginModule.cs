@@ -1,3 +1,5 @@
+using Dalamud.Game.Addon.Lifecycle;
+using Dalamud.Game.Addon.Lifecycle.AddonArgTypes;
 using Dalamud.Hooking;
 using Dalamud.Plugin.Services;
 using ECommons;
@@ -6,6 +8,8 @@ using ECommons.Automation.UIInput;
 using ECommons.ExcelServices;
 using ECommons.Throttlers;
 using ECommons.UIHelpers.AddonMasterImplementations;
+using FFXIVClientStructs.FFXIV.Client.Game.Gauge;
+using FFXIVClientStructs.FFXIV.Client.UI;
 using FFXIVClientStructs.FFXIV.Component.GUI;
 using Lumina.Excel.Sheets;
 using System;
@@ -20,7 +24,7 @@ namespace VIWI.Modules.AutoLogin
     internal unsafe class AutoLoginModule : VIWIModuleBase<AutoLoginConfig>
     {
         public const string ModuleName = "AutoLogin";
-        public const string ModuleVersion = "1.0.3";
+        public const string ModuleVersion = "1.0.4";
         public override string Name => ModuleName;
         public override string Version => ModuleVersion;
         public AutoLoginConfig _configuration => ModuleConfig;
@@ -71,6 +75,8 @@ namespace VIWI.Modules.AutoLogin
             ClientState.Login += OnLogin;
             ClientState.Logout += OnLogout;
             ClientState.TerritoryChanged += TerritoryChange;
+
+            AddonLifecycle.RegisterListener(AddonEvent.PostReceiveEvent, "SelectString", ServiceAccountSelectStringPostReceiveEvent);
         }
 
         public override void Disable()
@@ -79,6 +85,8 @@ namespace VIWI.Modules.AutoLogin
             ClientState.Login -= OnLogin;
             ClientState.Logout -= OnLogout;
             ClientState.TerritoryChanged -= TerritoryChange;
+
+            AddonLifecycle.UnregisterListener(AddonEvent.PostReceiveEvent, "SelectString", ServiceAccountSelectStringPostReceiveEvent);
 
             taskManager.Abort();
             LobbyErrorHandlerHook?.Disable();
@@ -142,58 +150,16 @@ namespace VIWI.Modules.AutoLogin
                 _lastErrorEpisode = DateTime.UtcNow;
 
                 taskManager.Abort();
-                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
-                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors"); //For some ungodly reason there is two windows here so we have to call this twice *only* on logouts???
+                taskManager.Enqueue(() => ClearDisconnectErrors(), "ClearDisconnectErrors");
+                taskManager.Enqueue(() => ClearDisconnectErrors(), "ClearDisconnectErrors"); //For some ungodly reason there is two windows here so we have to call this twice *only* on logouts???
                 taskManager.Enqueue(() =>
                 {
-                    if (IsLobbyError2002Screen()) return false;
+                    if (IsLobbyErrorVisible()) return false;
                     StartAutoLogin();
                     _inErrorRecovery = false;
                     return true;
                 }, "StartAutoLogin");
             }
-        }
-        public void NoKill()
-        {
-            if (!_configuration.Enabled) return;
-            if (noKillHookInitialized && LobbyErrorHandlerHook is { IsEnabled: true })
-                return;
-
-            LobbyErrorHandler = SigScanner.ScanText("40 53 48 83 EC 30 48 8B D9 49 8B C8 E8 ?? ?? ?? ?? 8B D0");
-            LobbyErrorHandlerHook = HookProvider.HookFromAddress<LobbyErrorHandlerDelegate>(
-                LobbyErrorHandler,
-                LobbyErrorHandlerDetour);
-
-            LobbyErrorHandlerHook.Enable();
-            noKillHookInitialized = true;
-        }
-        private char LobbyErrorHandlerDetour(Int64 a1, Int64 a2, Int64 a3)
-        {
-            IntPtr p3 = new IntPtr(a3);
-            var t1 = Marshal.ReadByte(p3);
-            var v4 = ((t1 & 0xF) > 0) ? (uint)Marshal.ReadInt32(p3 + 8) : 0;
-            UInt16 v4_16 = (UInt16)(v4);
-            PluginLog.Debug($"LobbyErrorHandler a1:{a1} a2:{a2} a3:{a3} t1:{t1} v4:{v4_16}");
-
-            if (!_configuration.Enabled)
-                return LobbyErrorHandlerHook!.Original(a1, a2, a3);
-
-            if (v4 > 0)
-            {
-                if (v4_16 == 0x332C && _configuration.SkipAuthError)
-                {
-                    PluginLog.Debug($"Skip Auth Error");
-                }
-                else
-                {
-                    Marshal.WriteInt64(p3 + 8, 0x3E80);
-                    // 0x3390: maintenance
-                    v4 = ((t1 & 0xF) > 0) ? (uint)Marshal.ReadInt32(p3 + 8) : 0;
-                    v4_16 = (UInt16)(v4);
-                }
-            }
-            PluginLog.Debug($"After LobbyErrorHandler a1:{a1} a2:{a2} a3:{a3} t1:{t1} v4:{v4_16}");
-            return this.LobbyErrorHandlerHook!.Original(a1, a2, a3);
         }
         private void TerritoryChange(ushort obj)
         {
@@ -256,7 +222,7 @@ namespace VIWI.Modules.AutoLogin
         {
             if (!_configuration.Enabled) return;
 
-            var errorVisible = IsLobbyError2002Screen();
+            var errorVisible = IsLobbyErrorVisible();
 
             if (errorVisible && !_inErrorRecovery)
             {
@@ -266,10 +232,10 @@ namespace VIWI.Modules.AutoLogin
                 PluginLog.Warning("[AutoLogin] Lobby error detected (likely 2002). Switching to error clear + resume.");
 
                 taskManager.Abort();
-                taskManager.Enqueue(ClearDisconnectErrors, "ClearDisconnectErrors");
+                taskManager.Enqueue(() => ClearDisconnectErrors(), "ClearDisconnectErrors");
                 taskManager.Enqueue(() =>
                 {
-                    if (IsLobbyError2002Screen()) return false;
+                    if (IsLobbyErrorVisible()) return false;
                     StartAutoLogin();
                     _inErrorRecovery = false;
                     return true;
@@ -287,6 +253,7 @@ namespace VIWI.Modules.AutoLogin
             if (taskManager.IsBusy) return;
         }
 
+        #region LoginLoop
         public void StartAutoLogin()
         {
             if (!_configuration.Enabled) return;
@@ -295,16 +262,37 @@ namespace VIWI.Modules.AutoLogin
             var chara = _configuration.HCMode ? _configuration.HCCharacterName : _configuration.CharacterName;
             var cWorld = _configuration.HCMode ? _configuration.HCCurrentWorldName : _configuration.CurrentWorldName;
             var visit = _configuration.HCMode ? _configuration.HCVisiting : _configuration.Visiting;
+            var index = _configuration.ServiceAccountIndex;
+
+            PluginLog.Information("[AutoLogin] Starting AutoLogin Loop");
 
             taskManager.Enqueue(() => SelectDataCenterMenu(), "SelectDataCenterMenu");
+            taskManager.Enqueue(() => SelectServiceAccountIndex(index), "SelectServiceAccount");
             taskManager.Enqueue(() => SelectDataCenter(dc, cWorld), "SelectDataCenter");
-            //taskManager.Enqueue(() => SelectWorldServer(hWorld), "SelectWorldServer");
             taskManager.Enqueue(() => SelectCharacter(chara, hWorld, cWorld, dc), "SelectCharacter");
             taskManager.Enqueue(() => ConfirmLogin(), "ConfirmLogin");
         }
-        private bool HasLobbyErrorDialogue()
+        #endregion
+
+        #region Step 0 - Error Handling
+        private unsafe bool IsLobbyErrorVisible() => TryGetLobbyErrorAddon(out _);
+        private unsafe bool TryGetLobbyErrorAddon(out AtkUnitBase* addon)
         {
-            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "Dialogue", out var d) && d->IsVisible) return true;
+            addon = null;
+
+            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "Dialogue", out var dialogue) && GenericHelpers.IsAddonReady(dialogue) && dialogue->IsVisible)
+            {
+                addon = dialogue;
+                return true;
+            }
+            foreach (var name in new[] { "_TitleError", "TitleError", "TitleServerError", "TitleNetworkError" })
+            {
+                if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, name, out var errorAddon) && GenericHelpers.IsAddonReady(errorAddon) && errorAddon->IsVisible)
+                {
+                    addon = errorAddon;
+                    return true;
+                }
+            }
 
             return false;
         }
@@ -312,7 +300,7 @@ namespace VIWI.Modules.AutoLogin
         {
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "Dialogue", out var dialogue) && GenericHelpers.IsAddonReady(dialogue) && dialogue->IsVisible)
             {
-                if (EzThrottler.Throttle("AutoLogin.Clear.DialogueOk", 800))
+                if (EzThrottler.Throttle("AutoLogin.Clear.DialogueOk", 500))
                 {
                     var btn = dialogue->GetComponentButtonById(4);
                     if (btn != null)
@@ -322,18 +310,65 @@ namespace VIWI.Modules.AutoLogin
                         return true;
                     }
                 }
-
-                return false;
             }
-
-            return !HasLobbyErrorDialogue();
+            return false;
         }
+        private char LobbyErrorHandlerDetour(Int64 a1, Int64 a2, Int64 a3) //-- Credit to Bluefissure's NoKillPlugin
+        {
+            IntPtr p3 = new IntPtr(a3);
+            var t1 = Marshal.ReadByte(p3);
+            var v4 = ((t1 & 0xF) > 0) ? (uint)Marshal.ReadInt32(p3 + 8) : 0;
+            UInt16 v4_16 = (UInt16)(v4);
+            PluginLog.Debug($"LobbyErrorHandler a1:{a1} a2:{a2} a3:{a3} t1:{t1} v4:{v4_16}");
+
+            if (!_configuration.Enabled)
+                return LobbyErrorHandlerHook!.Original(a1, a2, a3);
+
+            if (v4 > 0)
+            {
+                if (v4_16 == 0x332C && _configuration.SkipAuthError)
+                {
+                    PluginLog.Debug($"Skip Auth Error");
+                }
+                else
+                {
+                    Marshal.WriteInt64(p3 + 8, 0x3E80);
+                    // 0x3390: maintenance
+                    v4 = ((t1 & 0xF) > 0) ? (uint)Marshal.ReadInt32(p3 + 8) : 0;
+                    v4_16 = (UInt16)(v4);
+                }
+            }
+            PluginLog.Debug($"After LobbyErrorHandler a1:{a1} a2:{a2} a3:{a3} t1:{t1} v4:{v4_16}");
+            return this.LobbyErrorHandlerHook!.Original(a1, a2, a3);
+        }
+        public void NoKill()                                                //-- Credit to Bluefissure's NoKillPlugin
+        {
+            if (!_configuration.Enabled) return;
+            if (noKillHookInitialized && LobbyErrorHandlerHook is { IsEnabled: true })
+                return;
+
+            LobbyErrorHandler = SigScanner.ScanText("40 53 48 83 EC 30 48 8B D9 49 8B C8 E8 ?? ?? ?? ?? 8B D0");
+            LobbyErrorHandlerHook = HookProvider.HookFromAddress<LobbyErrorHandlerDelegate>(
+                LobbyErrorHandler,
+                LobbyErrorHandlerDetour);
+
+            LobbyErrorHandlerHook.Enable();
+            noKillHookInitialized = true;
+        }
+        #endregion
+
+        #region Step 1 - Title Screen
         private bool SelectDataCenterMenu()  // Title Screen -> Selecting Data Center Menu
         {
-            if (GuardAgainstErrors()) return false;
+            if (IsLobbyErrorVisible()) return false;
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "TitleDCWorldMap", out var dcMenu) && dcMenu->IsVisible)
             {
                 PluginLog.Information("[AutoLogin] DC Selection Menu Visible");
+                return true;
+            }
+            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "_CharaSelectListMenu", out var charaMenu) && charaMenu->IsVisible)
+            {
+                PluginLog.Information("[AutoLogin] Character Selection Menu Visible");
                 return true;
             }
 
@@ -351,10 +386,93 @@ namespace VIWI.Modules.AutoLogin
 
             return false;
         }
+        #endregion
 
+        #region Step 1.5 - Service Account Menu
+        private unsafe bool SelectServiceAccountIndex(int idx)
+        {
+            if (IsLobbyErrorVisible()) return false;
+            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "TitleDCWorldMap", out var dc) && dc->IsVisible)
+                return true;
+            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "_CharaSelectListMenu", out var chara) && chara->IsVisible)
+                return true;
+
+            if (!TryGetServiceAccountSelectString(out var sel, out var entryCount))
+                return true;
+
+            if (idx < 0 || idx >= entryCount)
+            {
+                PluginLog.Warning($"[AutoLogin] Saved ServiceAccountIndex={idx} out of range (entries={entryCount}). Please manually select to refresh.");
+                return false;
+            }
+
+            if (EzThrottler.Throttle("AutoLogin.SelectServiceAccount", 100))
+            {
+                PluginLog.Information($"[AutoLogin] Auto-selecting service account index {idx}");
+                sel->AtkUnitBase.FireCallbackInt(idx);
+            }
+            return false;
+        }
+        private unsafe bool TryGetServiceAccountSelectString(out AddonSelectString* sel, out int entryCount)
+        {
+            sel = null;
+            entryCount = 0;
+
+            if (!AddonHelpers.TryGetAddonByName<AddonSelectString>(GameGui, "SelectString", out var s))
+                return false;
+
+            if (!AddonState.IsAddonReady(&s->AtkUnitBase) || !s->AtkUnitBase.IsVisible)
+                return false;
+
+            var m = new AddonMaster.SelectString((void*)s);
+            if (!IsServiceAccountPromptText(m.Text))
+                return false;
+
+            var popup = s->PopupMenu.PopupMenu;
+            entryCount = popup.EntryCount;
+            if (entryCount <= 0)
+                return false;
+
+            sel = s;
+            return true;
+        }
+        private bool IsServiceAccountPromptText(string text)
+        {
+            var compareTo = DataManager.GetExcelSheet<Lobby>()?.GetRow(11).Text.ExtractText();
+            return !string.IsNullOrEmpty(compareTo) && string.Equals(text, compareTo, StringComparison.Ordinal);
+        }
+        private unsafe void ServiceAccountSelectStringPostReceiveEvent(AddonEvent type, AddonArgs args)
+        {
+            try
+            {
+                if (!_configuration.Enabled) return;
+
+                if (args is not AddonReceiveEventArgs rea)
+                    return;
+
+                if (!TryGetServiceAccountSelectString(out _, out var entryCount))
+                    return;
+
+                var idx = (int)rea.EventParam;
+                if (idx < 0 || idx >= entryCount)
+                    return;
+
+                _configuration.ServiceAccountIndex = idx;
+                SaveConfig();
+
+                PluginLog.Information($"[AutoLogin] Learned ServiceAccountIndex={idx} from manual selection.");
+            }
+            catch (Exception ex)
+            {
+                PluginLog.Warning(ex, "[AutoLogin] ServiceAccountSelectStringPostReceiveEvent failed.");
+            }
+        }
+        #endregion
+
+        #region Step 2 - Data Center Selection Menu
         private bool SelectDataCenter(int dc, string currWorld)
         {
-            if (GuardAgainstErrors()) return false;
+            if (IsLobbyErrorVisible()) return false;
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "_CharaSelectListMenu", out var charaMenu) && charaMenu->IsVisible)
             {
                 PluginLog.Information("[AutoLogin] Character Selection Menu Visible");
@@ -399,25 +517,9 @@ namespace VIWI.Modules.AutoLogin
 
             return false;
         }
-        /*private bool SelectWorldServer(string homeWorld)
-        {
-            if (TryGetAddonByName<AtkUnitBase>("_CharaSelectWorldServer", out var worldMenuAddon) && GenericHelpers.IsAddonReady(worldMenuAddon))
-            {
-                var mw = new AddonMaster._CharaSelectWorldServer((void*)worldMenuAddon);
-                var targetWorld = mw.Worlds.FirstOrDefault(w => w.Name == homeWorld);
-                if (targetWorld == null)
-                    return false;
+        #endregion
 
-                if (EzThrottler.Throttle("SelectWorld", 150))
-                {
-                    PluginLog.Information($"[AutoLogin] Selecting world {targetWorld.Name}");
-                    targetWorld.Select();
-                    return true;
-                }
-            }
-            return false;
-        }*/
-
+        #region Step 3 - Character Selection
         private bool? SelectCharacter(string name, string homeWorld, string currWorld, int dc)
         {
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "SelectYesno", out _) || AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "SelectOk", out _))
@@ -454,7 +556,9 @@ namespace VIWI.Modules.AutoLogin
             }
         return false;
         }
+        #endregion
 
+        #region Step 4 - Login Confirmation Windows
         private bool? ConfirmLogin()
         {
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "SelectOk", out _)) return true;
@@ -463,7 +567,10 @@ namespace VIWI.Modules.AutoLogin
             if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "SelectYesno", out var yesnoPtr) && GenericHelpers.IsAddonReady(yesnoPtr))
             {
                 var m = new AddonMaster.SelectYesno((void*)yesnoPtr);
-                if (m.Text.Contains("Log in", StringComparison.OrdinalIgnoreCase) || m.Text.Contains("Logging in", StringComparison.OrdinalIgnoreCase) || m.Text.Contains("last logged out", StringComparison.Ordinal))
+                if (m.Text.Contains("Log in", StringComparison.OrdinalIgnoreCase) || m.Text.Contains("Logging in", StringComparison.OrdinalIgnoreCase) || m.Text.Contains("last logged out", StringComparison.Ordinal) ||                        //NA
+                    m.Text.Contains("でログインします", StringComparison.OrdinalIgnoreCase) || /*m.Text.Contains("Logging in", StringComparison.OrdinalIgnoreCase) ||*/ m.Text.Contains("環境で最後にログ", StringComparison.Ordinal) ||              //JP
+                    m.Text.Contains("einloggen?", StringComparison.OrdinalIgnoreCase) || /*m.Text.Contains("Logging in", StringComparison.OrdinalIgnoreCase) ||*/ m.Text.Contains("ausgeloggt hast", StringComparison.Ordinal) ||                //DE
+                    m.Text.Contains("Se connecter", StringComparison.OrdinalIgnoreCase) || /*m.Text.Contains("Logging in", StringComparison.OrdinalIgnoreCase) ||*/ m.Text.Contains("dernière connexion n'a pas", StringComparison.Ordinal))     //FR
                 {
                     if (EzThrottler.Throttle("ConfirmLogin", 150))
                     {
@@ -476,30 +583,6 @@ namespace VIWI.Modules.AutoLogin
 
             return false;
         }
-        private bool GuardAgainstErrors()
-        {
-            if (IsLobbyError2002Screen())
-            {
-                PluginLog.Warning("[AutoLogin] Error dialog detected mid-login; returning to error clearing.");
-                return true;
-            }
-            return false;
-        }
-        private unsafe bool IsLobbyError2002Screen()
-        {
-            if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, "Dialogue", out var dialogue) &&
-                GenericHelpers.IsAddonReady(dialogue) && dialogue->IsVisible)
-            {
-                return true;
-            }
-            foreach (var name in new[] { "_TitleError", "TitleError", "TitleServerError", "TitleNetworkError" })
-            {
-                if (AddonHelpers.TryGetAddonByName<AtkUnitBase>(GameGui, name, out var a) &&
-                    GenericHelpers.IsAddonReady(a) && a->IsVisible)
-                    return true;
-            }
-
-            return false;
-        }
+        #endregion
     }
 }

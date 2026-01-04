@@ -123,14 +123,13 @@ namespace VIWI.UI.Windows
 
                 ImGui.PushStyleVar(ImGuiStyleVar.FrameRounding, 14f * ImGuiHelpers.GlobalScale);
                 ImGui.PushStyleVar(ImGuiStyleVar.FramePadding, new Vector2(14f, 7f) * ImGuiHelpers.GlobalScale);
-                ImGui.PushStyleColor(ImGuiCol.Button, colBase);
-                ImGui.PushStyleColor(ImGuiCol.ButtonHovered, colHovered);
-                ImGui.PushStyleColor(ImGuiCol.ButtonActive, colActive);
+                using (ImRaii.PushColor(ImGuiCol.Button, colBase))
+                using (ImRaii.PushColor(ImGuiCol.ButtonHovered, colHovered))
+                using (ImRaii.PushColor(ImGuiCol.ButtonActive, colActive))
 
-                if (ImGui.Button(label, new Vector2(toggleWidth, 0)))
+                    if (ImGui.Button(label, new Vector2(toggleWidth, 0)))
                     page.SetEnabled(!enabled);
 
-                ImGui.PopStyleColor(3);
                 ImGui.PopStyleVar(2);
             }
 
