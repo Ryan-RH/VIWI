@@ -27,7 +27,7 @@ namespace VIWI.Modules.AutoLogin
     internal unsafe class AutoLoginModule : VIWIModuleBase<AutoLoginConfig>
     {
         public const string ModuleName = "AutoLogin";
-        public const string ModuleVersion = "1.1.0";
+        public const string ModuleVersion = "1.1.1";
         public override string Name => ModuleName;
         public override string Version => ModuleVersion;
         public AutoLoginConfig _configuration => ModuleConfig;
@@ -78,7 +78,7 @@ namespace VIWI.Modules.AutoLogin
         {
             NoKill();
 
-            if (CoreConfig.Unlocked)
+            if (_configuration.ClientLaunchPath != null)
             {
                 CheckRestartFlag();
             }
@@ -348,7 +348,7 @@ namespace VIWI.Modules.AutoLogin
                 if (v4_16 == 0x332C && _configuration.SkipAuthError)
                 {
                     PluginLog.Debug($"Skip Auth Error");
-                    if (CoreConfig.Unlocked && _configuration.SkipAuthError == true && _configuration.ClientLaunchPath != null)
+                    if (_configuration.SkipAuthError == true && _configuration.ClientLaunchPath != null)
                     {
                         RequestClientRestart();
                     }
@@ -609,7 +609,7 @@ namespace VIWI.Modules.AutoLogin
         }
         #endregion
 
-        #region Step 4.5 - PostLogin Processes
+        #region Step 4.5 - PostLogin Commands
 
         private void RunLoginCommands()
         {
@@ -648,8 +648,8 @@ namespace VIWI.Modules.AutoLogin
             if (!_autoRetainerIPC.IsLoaded)
                 return false;
 
-            var busy = _autoRetainerIPC.IsBusy?.Invoke() == true;
-            var multi = _autoRetainerIPC.GetMultiModeEnabled?.Invoke() == true;
+            var busy = _autoRetainerIPC.IsBusy() == true;
+            var multi = _autoRetainerIPC.GetMultiModeEnabled() == true;
             if (busy || multi)
             {
                 PluginLog.Information($"[AutoLogin] Skipping login commands: AutoRetainer active (busy={busy}, multi={multi}).");
@@ -668,6 +668,7 @@ namespace VIWI.Modules.AutoLogin
             RunLoginCommands();
         }
         #endregion
+
         #region Step 5 - Restart on Auth Error
         public void RequestClientRestart()
         {

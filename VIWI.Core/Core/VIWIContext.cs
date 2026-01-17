@@ -25,4 +25,6 @@ public static class VIWIContext
     public static IAddonLifecycle AddonLifecycle { get; internal set; } = null!;
     public static ICondition Condition { get; internal set; } = null!;
     public static IPluginLog PluginLog { get; internal set; } = null!;
+    public static INotificationManager NotificationManager { get; internal set; } = null!;
+    public static IDtrBar DtrBar { get; internal set; } = null!;
 }

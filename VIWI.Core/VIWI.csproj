@@ -2,7 +2,7 @@
 
 	<PropertyGroup>
 		<Authors>VeraNala</Authors>
-		<Version>0.0.0.27</Version>
+		<Version>0.0.0.29</Version>
 		<TargetFramework>net10.0-windows7.0</TargetFramework>
 		<Platforms>x64</Platforms>
 		<LangVersion>preview</LangVersion>
@@ -99,6 +99,9 @@
 	<ItemGroup>
 	  <Folder Include="Modules\Workshoppa\External\" />
 	  <Folder Include="Modules\Workshoppa\GameData\" />
+	</ItemGroup>
+	<ItemGroup>
+	  <PackageReference Include="Pictomancy" Version="0.0.5" />
 	</ItemGroup>
 
 </Project>

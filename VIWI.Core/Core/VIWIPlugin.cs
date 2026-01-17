@@ -26,6 +26,8 @@ public sealed class VIWIPlugin : IDalamudPlugin
     [PluginService] internal static IAddonLifecycle AddonLifecycle { get; private set; } = null!;
     [PluginService] internal static IChatGui ChatGui { get; private set; } = null!;
     [PluginService] internal static ICondition Condition { get; private set; } = null!;
+    [PluginService] internal static INotificationManager NotificationManager { get; private set; } = null!;
+    [PluginService] internal static IDtrBar DtrBar { get; private set; } = null!;
 
     internal readonly WindowSystem WindowSystem = new("VIWI");
     internal MainDashboardWindow? MainWindow;
@@ -45,7 +47,9 @@ public sealed class VIWIPlugin : IDalamudPlugin
             IGameInteropProvider hookProvider,
             IAddonLifecycle addonLifecycle,
             IChatGui chatGui,
-            ICondition condition)
+            ICondition condition,
+            INotificationManager notificationManager,
+            IDtrBar dtrBar)
     {
         Instance = this;
         PluginInterface = pluginInterface;
@@ -74,8 +78,10 @@ public sealed class VIWIPlugin : IDalamudPlugin
         VIWIContext.AddonLifecycle = addonLifecycle;
         VIWIContext.ChatGui = chatGui;
         VIWIContext.Condition = condition;
+        VIWIContext.NotificationManager = notificationManager;
+        VIWIContext.DtrBar = dtrBar;
 
-        ECommonsMain.Init(pluginInterface, this);
+        ECommonsMain.Init(pluginInterface, this, [Module.DalamudReflector]);
         PluginLog.Information("Core + ECommons initialized.");
 
         MainWindow = new MainDashboardWindow(config);

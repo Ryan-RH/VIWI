@@ -1,13 +1,10 @@
 using Dalamud.Bindings.ImGui;
-using Dalamud.Game.Command;
 using Dalamud.Interface.Components;
 using Dalamud.Interface.Utility;
-using Dalamud.Plugin.Services;
 using ECommons.ImGuiMethods;
 using System.Numerics;
 using VIWI.Helpers;
 using VIWI.Modules.Workshoppa;
-using static FFXIVClientStructs.FFXIV.Client.UI.AddonActionCross;
 
 namespace VIWI.UI.Pages
 {
@@ -98,14 +95,32 @@ namespace VIWI.UI.Pages
             ImGuiHelpers.ScaledDummy(8f);
             ImGui.TextUnformatted("Commands:"); //I could have made a table but I'm tired.
             ImGuiHelpers.ScaledDummy(4f);
-            ImGui.Text("/ws                     = Open Workshoppa UI.");
-            ImGui.Text("/workshoppa   = Open Workshoppa UI.");
-            ImGui.Text("/buy-tanks        = Buy a given number of ceruleum tank stacks.");
-            ImGui.Text("/fill-tanks          = Fill your inventory with a given number of ceruleum tank stacks.");
-            ImGui.Text("/buy-stone        = Buy a given number of mudstone stacks.");
-            ImGui.Text("/fill-stone          = Fill your inventory with a given number of mudstone stacks.");
-            ImGui.Text("/grindstone       = Starts the experimental leveling feature.");
-            ImGui.Text("/g6dm                = Buy Grade6DarkMatter at a 5:1 ratio for RepairKits.");
+            if (ImGui.BeginTable("WorkshoppaCommands", 2,
+                ImGuiTableFlags.SizingFixedFit | ImGuiTableFlags.RowBg))
+            {
+                ImGui.TableSetupColumn("Command", ImGuiTableColumnFlags.WidthFixed);
+                ImGui.TableSetupColumn("Description", ImGuiTableColumnFlags.WidthStretch);
+
+                void Row(string cmd, string desc)
+                {
+                    ImGui.TableNextRow();
+                    ImGui.TableNextColumn();
+                    ImGui.TextUnformatted(cmd);
+                    ImGui.TableNextColumn();
+                    ImGui.TextWrapped(desc);
+                }
+
+                Row("/ws", "Open Workshoppa UI.");
+                Row("/workshoppa", "Open Workshoppa UI.");
+                Row("/buy-tanks", "Buy a given number of ceruleum tank stacks.");
+                Row("/fill-tanks", "Fill your inventory with a given number of ceruleum tank stacks.");
+                Row("/buy-stone", "Buy a given number of mudstone stacks.");
+                Row("/fill-stone", "Fill your inventory with a given number of mudstone stacks.");
+                Row("/grindstone", "Starts the experimental leveling feature.");
+                Row("/g6sm", "Buy Grade6DarkMatter at a 5:1 ratio for RepairKits.");
+
+                ImGui.EndTable();
+            }
 
             ImGui.Separator();
             ImGuiHelpers.ScaledDummy(8f);
