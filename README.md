@@ -1,4 +1,6 @@
 # Vera's Integrated World Improvements (VIWI)
+<img width="80" height="80" alt="VIWI" src="https://github.com/user-attachments/assets/150ef409-ead2-4022-a844-2820ab11f39c" />
+
 A collection of plugins-turned-modules, QoL improvements, and Automation features.
 
 ## Includes
