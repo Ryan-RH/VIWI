@@ -16,8 +16,8 @@ namespace VIWI.Modules.KitchenSink.Commands;
 
 public sealed unsafe class WeaponIcons : IDisposable
 {
-    public float OverlayOffsetX { get; set; } = 70f;
-    public float OverlayOffsetY { get; set; } = 100f;
+    public float OverlayOffsetX { get; set; } = 74f;
+    public float OverlayOffsetY { get; set; } = 112f;
 
     private static class BaseColors
     {
@@ -206,6 +206,9 @@ public sealed unsafe class WeaponIcons : IDisposable
         var addonPos = new Vector2(unitBase->X, unitBase->Y);
         float s = unitBase->Scale;
 
+        float offX = OverlayOffsetX * s;
+        float offY = OverlayOffsetY * s;
+
         int count = (int)sorter.Value->Items.Count;
 
         for (int i = 0; i < count; i++)
@@ -214,7 +217,6 @@ public sealed unsafe class WeaponIcons : IDisposable
             if (invItem == null || invItem->ItemId == 0)
                 continue;
 
-            // ArmouryBoard slot nodes commonly start at 71 (per tab).
             uint nodeId = (uint)(71 + i);
             var node = (AtkComponentNode*)armoury->AtkUnitBase.GetNodeById(nodeId);
             if (node == null)
@@ -227,8 +229,8 @@ public sealed unsafe class WeaponIcons : IDisposable
             if (w <= 0 || h <= 0)
                 continue;
 
-            float x = addonPos.X + (res->X * s) + OverlayOffsetX;
-            float y = addonPos.Y + (res->Y * s) + OverlayOffsetY;
+            float x = addonPos.X + (res->X * s) + offX;
+            float y = addonPos.Y + (res->Y * s) + offY;
 
             var p0 = new Vector2(x, y);
             var p1 = new Vector2(x + w, y + h);
@@ -251,16 +253,11 @@ public sealed unsafe class WeaponIcons : IDisposable
             }
             else
             {
-                float slotW = w;
-                float slotH = h;
-
-                float mini = MathF.Floor(MathF.Min(slotW, slotH) * 0.5f);
-
-                float pad = MathF.Max(2f, mini * 0.2f);
+                float mini = MathF.Floor(MathF.Min(w, h) * 0.5f);
 
                 iconP0 = new Vector2(
-                    p0.X - pad,
-                    p1.Y + pad - mini 
+                    p0.X,
+                    p1.Y - mini
                 );
 
                 iconP1 = iconP0 + new Vector2(mini, mini);

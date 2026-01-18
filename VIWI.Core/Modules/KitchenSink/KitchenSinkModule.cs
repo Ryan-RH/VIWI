@@ -102,7 +102,7 @@ namespace VIWI.Modules.KitchenSink
                 _configuration);
             if (_configuration.WeaponIconsEnabled)
             {
-                PluginInterface.UiBuilder.Draw += _weaponIcons.Draw;
+                //PluginInterface.UiBuilder.Draw += _weaponIcons.Draw;
             }
             PluginInterface.UiBuilder.Draw += _windowSystem.Draw;
 
