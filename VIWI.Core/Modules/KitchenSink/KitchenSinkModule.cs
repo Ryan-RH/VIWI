@@ -78,6 +78,8 @@ namespace VIWI.Modules.KitchenSink
                 _configuration,
                 SaveConfig);
 
+            _weaponIcons ??= new WeaponIcons(GameGui, KeyState, DataManager, TextureProvider, PluginLog, _configuration);
+
             _weatherForecast ??= new WeatherForecast(
                 ClientState,
                 DataManager,
@@ -100,7 +102,6 @@ namespace VIWI.Modules.KitchenSink
                 _configuration);
             if (_configuration.WeaponIconsEnabled)
             {
-                _weaponIcons ??= new WeaponIcons(GameGui, KeyState, DataManager, TextureProvider, PluginLog, _configuration);
                 PluginInterface.UiBuilder.Draw += _weaponIcons.Draw;
             }
             PluginInterface.UiBuilder.Draw += _windowSystem.Draw;

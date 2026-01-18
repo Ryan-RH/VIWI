@@ -11,5 +11,6 @@ namespace VIWI.UI.Pages
         bool SupportsEnableToggle { get; }
         bool IsEnabled { get; }
         void SetEnabled(bool value);
+        bool RequiresUnlock => false;
     }
 }

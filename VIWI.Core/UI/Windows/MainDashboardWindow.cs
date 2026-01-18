@@ -20,6 +20,9 @@ namespace VIWI.UI.Windows
         private readonly VIWIConfig _config;
         private const string DonationUrl = "https://ko-fi.com/veralynnala";
         private ISharedImmediateTexture? _sidebarImage;
+        private bool IsUnlocked => VIWIContext.CoreConfig?.Unlocked == true;
+        private bool IsSillyUnlocked => VIWIContext.CoreConfig?.SillyMode == true;
+        private bool ShouldShowPage(IDashboardPage page) => !page.RequiresUnlock || IsUnlocked || IsSillyUnlocked;
 
         public MainDashboardWindow(VIWIConfig config)
             : base("VIWI - Vera's Integrated World Improvements##VIWI Dashboard",
@@ -57,10 +60,10 @@ namespace VIWI.UI.Windows
 
             using (ImRaii.Child("##viwi_content", Vector2.Zero, false))
             {
-                if (activePage != null)
-                    activePage.Draw();
-                else
-                    ImGui.TextUnformatted("No page selected.");
+                if (activePage != null && !ShouldShowPage(activePage))
+                    activePage = DashboardRegistry.Pages.FirstOrDefault(p => p.DisplayName == "Overview");
+
+                activePage?.Draw();
             }
         }
         public void Dispose()
@@ -97,7 +100,8 @@ namespace VIWI.UI.Windows
 
             using (ImRaii.Child("##viwi_sidebar_content", new Vector2(0, sidebarHeight - footerHeight), false))
             {
-                var overview = DashboardRegistry.Pages.FirstOrDefault(p => p.DisplayName == "Overview");
+                var pages = DashboardRegistry.Pages.Where(ShouldShowPage).ToList();
+                var overview = pages.FirstOrDefault(p => p.DisplayName == "Overview");
                 if (overview != null)
                 {
                     DrawPageEntry(overview);
@@ -108,7 +112,7 @@ namespace VIWI.UI.Windows
                     ImGuiHelpers.ScaledDummy(6f);
                 }
 
-                var grouped = DashboardRegistry.Pages
+                var grouped = pages
                     .Where(p => !ReferenceEquals(p, overview))
                     .GroupBy(p => p.Category)
                     .OrderBy(g => g.Key);
@@ -212,7 +216,8 @@ namespace VIWI.UI.Windows
 
         private string _passkeyInput = string.Empty;
         private string _passkeyStatus = string.Empty;
-        private const string ExpectedPasskeyHash = "0d2ca3afc299c9adec3c2e3bb52b229c768a52051f20f87f2ad81c1b329fda0a";
+        private const string PasskeyHash1 = "0d2ca3afc299c9adec3c2e3bb52b229c768a52051f20f87f2ad81c1b329fda0a";
+        private const string PasskeyHash2 = "65957907ff7279ae6160476cab6e59f3e810622a51a07ff34cff3440fb79ffd7";
         private Vector4 _passkeyStatusColor = Vector4.One;
         private void DrawPasskeyField()
         {
@@ -240,18 +245,31 @@ namespace VIWI.UI.Windows
             {
                 var attempt = _passkeyInput;
                 _passkeyInput = string.Empty;
-
-                if (IsPasskeyValid(attempt))
+                var result = IsPasskeyValid(attempt);
+                switch (result)
                 {
-                    _passkeyStatus = "Unlocked!";
-                    _passkeyStatusColor = new Vector4(0.3f, 1f, 0.3f, 1f);
-                    _config.Unlocked = true;
-                    _config.Save();
-                }
-                else
-                {
-                    _passkeyStatus = "Incorrect passkey.";
-                    _passkeyStatusColor = new Vector4(1f, 0.3f, 0.3f, 1f);
+                    case 1:
+                    {
+                        _passkeyStatus = "Unlocked!";
+                        _passkeyStatusColor = new Vector4(0.3f, 1f, 0.3f, 1f);
+                        _config.Unlocked = true;
+                        _config.Save();
+                        break;
+                    }
+                    case 2:
+                    {
+                        _passkeyStatus = "♥Unlocked♥";
+                        _passkeyStatusColor = new Vector4(1f, 0.3f, 0.8f, 1f);
+                        _config.SillyMode = true;
+                        _config.Save();
+                        break;
+                    }
+                    case 0:
+                    {
+                        _passkeyStatus = "Incorrect passkey.";
+                        _passkeyStatusColor = new Vector4(1f, 0.3f, 0.3f, 1f);
+                        break;
+                    }
                 }
             }
             //For Testing
@@ -266,11 +284,13 @@ namespace VIWI.UI.Windows
 
             ImGuiHelpers.ScaledDummy(4f);
         }
-        private static bool IsPasskeyValid(string attempt)
+        private static int IsPasskeyValid(string attempt)
         {
             var normalized = attempt.Trim().ToLowerInvariant();
             var hash = ComputeSha256(normalized);
-            return hash == ExpectedPasskeyHash;
+            if (hash == PasskeyHash1) return 1;
+            if (hash == PasskeyHash2) return 2;
+            return 0;
         }
         private static string ComputeSha256(string input)
         {
